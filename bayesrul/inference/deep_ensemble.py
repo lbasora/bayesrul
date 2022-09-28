@@ -1,17 +1,16 @@
 from pathlib import Path
 
-import torch
-import numpy as np
-
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import EarlyStopping
+import torch
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
+import numpy as np
 from bayesrul.inference.inference import Inference
 from bayesrul.lightning_wrappers.frequentist import DeepEnsembleWrapper
 from bayesrul.utils.miscellaneous import (
-    get_checkpoint,
-    TBLogger,
     Dotdict,
+    TBLogger,
+    get_checkpoint,
     numel,
 )
 from bayesrul.utils.post_process import ResultSaver
@@ -32,7 +31,9 @@ class DeepEnsemble(Inference):
         studying=False,
     ) -> None:
 
-        assert isinstance(GPU, int), f"GPU argument should be an int, not {type(GPU)}"
+        assert isinstance(
+            GPU, int
+        ), f"GPU argument should be an int, not {type(GPU)}"
         assert isinstance(
             n_models, int
         ), f"n_models argument should be an int, not {type(n_models)}"
@@ -68,7 +69,7 @@ class DeepEnsemble(Inference):
         self.checkpoint_file = get_checkpoint(self.base_log_dir, version=None)
 
         self.logger = TBLogger(
-            Path(self.base_log_dir),
+            str(self.base_log_dir),
             default_hp_metric=False,
         )
 
@@ -77,29 +78,31 @@ class DeepEnsemble(Inference):
         if self.checkpoint_file:
             print("Loading model from checkpoint")
             self.dnn = DeepEnsembleWrapper.load_from_checkpoint(
-                self.checkpoint_file, map_location=self.args.device
+                self.checkpoint_file, map_location=self.args.device  # type: ignore
             )
         else:
             print(self.args)
             self.dnn = DeepEnsembleWrapper(
-                self.data.win_length,
-                self.data.n_features,
+                self.data.win_length,  # type: ignore
+                self.data.n_features,  # type: ignore
                 self.n_models,
                 **self.args,
             )
 
-    def fit(self, epochs, monitors=None, early_stop=0):
+    def fit(self, epochs, monitor=None, early_stop=0):
         if not hasattr(self, "dnn"):
             self._define_model()
 
         self.trainer = pl.Trainer(
-            default_root_dir=self.base_log_dir,
-            gpus=[self.GPU],
+            default_root_dir=str(self.base_log_dir),
+            accelerator="gpu",
+            devices=[self.GPU],
             max_epochs=epochs,
-            log_every_n_steps=2,
+            log_every_n_steps=100,
             logger=self.logger,
             callbacks=[
-                EarlyStopping(monitor="gaussian_nll/val", patience=early_stop),
+                ModelCheckpoint(monitor=monitor),
+                EarlyStopping(monitor=monitor, patience=early_stop),
             ]
             if early_stop
             else None,
@@ -107,14 +110,18 @@ class DeepEnsemble(Inference):
 
         self.trainer.fit(self.dnn, self.data, ckpt_path=self.checkpoint_file)
 
-        return self.trainer.callback_metrics["mse/val"]
+        return self.trainer.callback_metrics[monitor]
 
     def test(self):
         if not hasattr(self, "dnn"):
             self._define_model()
 
         tester = pl.Trainer(
-            gpus=[self.GPU], log_every_n_steps=10, logger=self.logger, max_epochs=-1
+            accelerator="gpu",
+            devices=[self.GPU],
+            log_every_n_steps=100,
+            logger=self.logger,
+            max_epochs=-1,
         )  # Silence warning
 
         tester.test(self.dnn, self.data, verbose=False)
@@ -123,7 +130,9 @@ class DeepEnsemble(Inference):
         self.results.save(self.dnn.test_preds)
 
     def epistemic_aleatoric_uncertainty(self, device=None):
-        raise NotImplementedError("Deep Ensembles can't model epistemic uncertainties.")
+        raise NotImplementedError(
+            "Deep Ensembles can't model epistemic uncertainties."
+        )
 
     def num_params(self) -> int:
         if not hasattr(self, "dnn"):

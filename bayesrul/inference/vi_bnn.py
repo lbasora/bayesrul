@@ -1,3 +1,4 @@
+# type: ignore
 from pathlib import Path
 from tqdm import tqdm
 
@@ -10,7 +11,7 @@ from bayesrul.lightning_wrappers.frequentist import DnnPretrainWrapper
 from bayesrul.lightning_wrappers.bayesian import VIBnnWrapper
 from bayesrul.utils.miscellaneous import get_checkpoint, TBLogger, Dotdict
 from bayesrul.utils.post_process import ResultSaver
-from pytorch_lightning.callbacks import EarlyStopping
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
 DEBUG = False
 
@@ -28,7 +29,9 @@ class VI_BNN(Inference):
         GPU=0,
         studying=False,
     ) -> None:
-        assert isinstance(GPU, int), f"GPU argument should be an int, not {type(GPU)}"
+        assert isinstance(
+            GPU, int
+        ), f"GPU argument should be an int, not {type(GPU)}"
         assert isinstance(
             data, pl.LightningDataModule
         ), f"data argument should be a LightningDataModule, not {type(data)}"
@@ -69,7 +72,7 @@ class VI_BNN(Inference):
         self.checkpoint_file = get_checkpoint(self.base_log_dir, version=None)
 
         self.logger = TBLogger(
-            Path(self.base_log_dir),
+            self.base_log_dir,
             default_hp_metric=False,
         )
 
@@ -81,10 +84,13 @@ class VI_BNN(Inference):
         if self.args.pretrain > 0 and (not checkpoint_file):
 
             pre_net = DnnPretrainWrapper(
-                self.data.win_length, self.data.n_features, archi=self.args.archi
+                self.data.win_length,
+                self.data.n_features,
+                archi=self.args.archi,
             )
             pre_trainer = pl.Trainer(
-                gpus=[self.GPU],
+                accelerator="gpu",
+                devices=[self.GPU],
                 max_epochs=self.args.pretrain,
                 logger=False,
                 enable_checkpointing=False,
@@ -108,7 +114,9 @@ class VI_BNN(Inference):
             print("Loading already trained model")
             additional_kwargs = {"pretrain": 0, "pretrain_file": None}
             self.bnn = VIBnnWrapper.load_from_checkpoint(
-                checkpoint_file, map_location=self.args.device, **additional_kwargs
+                checkpoint_file,
+                map_location=self.args.device,
+                **additional_kwargs,
             )
         else:
             self.bnn = VIBnnWrapper(
@@ -118,14 +126,14 @@ class VI_BNN(Inference):
                 **self.args,
             )
 
-    def fit(self, epochs: int, monitors=None, another_GPU=None, early_stop=0):
-        if (monitors is not None) & (
+    def fit(self, epochs: int, monitor=None, another_GPU=None, early_stop=0):
+        if (monitor is not None) & (
             ("bi_obj" not in self.base_log_dir.as_posix())
             or ("single_obj" not in self.base_log_dir.as_posix())
         ):
             base = "/".join(self.base_log_dir.as_posix().split("/")[:-1])
             end = self.base_log_dir.as_posix().split("/")[-1]
-            if len(monitors) == 1:
+            if len(monitor) == 1:
                 log_dir = Path(base, "single_obj", end)
             else:
                 log_dir = Path(base, "bi_obj", end)
@@ -137,13 +145,15 @@ class VI_BNN(Inference):
             GPU = self.GPU
 
         self.trainer = pl.Trainer(
-            default_root_dir=self.base_log_dir,
-            gpus=[GPU],
+            default_root_dir=str(self.base_log_dir),
+            accelerator="gpu",
+            devices=[self.GPU],
             max_epochs=epochs,
-            log_every_n_steps=2,
+            log_every_n_steps=100,
             logger=self.logger,
             callbacks=[
-                EarlyStopping(monitor="elbo/val", patience=early_stop),
+                ModelCheckpoint(monitor=monitor),
+                EarlyStopping(monitor=monitor, patience=early_stop),
             ]
             if early_stop
             else None,
@@ -155,18 +165,20 @@ class VI_BNN(Inference):
         self.trainer.fit(self.bnn, self.data)
 
         if epochs > 0:
-            if monitors:
-                return [self.trainer.callback_metrics[monitor] for monitor in monitors]
-        # else:
-        #    raise RuntimeError(f"Cannot fit model for {epochs} epochs.")
+            return (
+                [self.trainer.callback_metrics[m] for m in monitor]
+                if isinstance(monitor, list)
+                else self.trainer.callback_metrics[monitor]
+            )
 
     def test(self):
         if not hasattr(self, "bnn"):
             self._define_model()
 
         tester = pl.Trainer(
-            gpus=[self.GPU],
-            log_every_n_steps=10,
+            accelerator="gpu",
+            devices=[self.GPU],
+            log_every_n_steps=100,
             logger=self.logger,
             max_epochs=-1,  # Silence warning
         )
@@ -188,7 +200,9 @@ class VI_BNN(Inference):
             x, y = x.to(device), y.to(device)
             n += len(x)
 
-            output = self.bnn.bnn.predict(x, num_predictions=10, aggregate=False)
+            output = self.bnn.bnn.predict(
+                x, num_predictions=10, aggregate=False
+            )
             if isinstance(output, tuple):
                 loc, scale = output
             else:

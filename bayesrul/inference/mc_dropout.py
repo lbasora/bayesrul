@@ -1,21 +1,21 @@
+# type: ignore
 from pathlib import Path
 
-import torch
-
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import EarlyStopping
+import torch
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from tqdm import tqdm
 
 from bayesrul.inference.inference import Inference
 from bayesrul.lightning_wrappers.frequentist import DnnWrapper
 from bayesrul.utils.miscellaneous import (
-    get_checkpoint,
-    TBLogger,
     Dotdict,
+    TBLogger,
     enable_dropout,
+    get_checkpoint,
     numel,
 )
 from bayesrul.utils.post_process import ResultSaver
-from tqdm import tqdm
 
 
 def assert_dropout(model):
@@ -40,7 +40,9 @@ class MCDropout(Inference):
         GPU=0,
         studying=False,
     ) -> None:
-        assert isinstance(GPU, int), f"GPU argument should be an int, not {type(GPU)}"
+        assert isinstance(
+            GPU, int
+        ), f"GPU argument should be an int, not {type(GPU)}"
         assert isinstance(
             data, pl.LightningDataModule
         ), f"data argument should be a LightningDataModule, not {type(data)}"
@@ -89,18 +91,20 @@ class MCDropout(Inference):
 
         assert assert_dropout(self.dnn), "MCDropout Model has no dropout layers"
 
-    def fit(self, epochs, monitors=None, early_stop=0):
+    def fit(self, epochs, monitor=None, early_stop=0):
         if not hasattr(self, "dnn"):
             self._define_model()
 
         self.trainer = pl.Trainer(
             default_root_dir=self.base_log_dir,
-            gpus=[self.GPU],
+            accelerator="gpu",
+            devices=[self.GPU],
             max_epochs=epochs,
-            log_every_n_steps=2,
+            log_every_n_steps=100,
             logger=self.logger,
             callbacks=[
-                EarlyStopping(monitor=f"{self.dnn.loss}/val", patience=early_stop),
+                ModelCheckpoint(monitor=monitor),
+                EarlyStopping(monitor=monitor, patience=early_stop),
             ]
             if early_stop
             else None,
@@ -117,7 +121,11 @@ class MCDropout(Inference):
         enable_dropout(self.dnn)
 
         tester = pl.Trainer(
-            gpus=[self.GPU], log_every_n_steps=10, logger=self.logger, max_epochs=-1
+            accelerator="gpu",
+            devices=[self.GPU],
+            log_every_n_steps=100,
+            logger=self.logger,
+            max_epochs=-1,
         )  # Silence warning
 
         tester.test(self.dnn, self.data, verbose=False)
@@ -158,7 +166,9 @@ class MCDropout(Inference):
                 # Sd is the PREDICTIVE VARIANCE
                 pred_loc.append(loc.mean(axis=dim))
 
-                predictive_var.append((scale**2).mean(dim).add(loc.var(dim)).cpu())
+                predictive_var.append(
+                    (scale**2).mean(dim).add(loc.var(dim)).cpu()
+                )
                 # predictive_unc = predictive_var.sqrt()
                 epistemic_var.append(loc.var(dim).cpu())
                 # epistemic_unc = epistemic_var.sqrt()

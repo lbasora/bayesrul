@@ -1,10 +1,14 @@
+import torch
+from pathlib import Path
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
 from ..utils.lmdb_utils import LmdbDataset
 
+
 class NCMAPSSLmdbDataset(LmdbDataset):
-    """ Returns features X + rul Y for training purposes """
+    """Returns features X + rul Y for training purposes"""
+
     def __getitem__(self, i: int):
         sample = super().__getitem__(i)
         rul = self.dtype(super().get(f"rul_{i}", numpy=False))
@@ -12,7 +16,8 @@ class NCMAPSSLmdbDataset(LmdbDataset):
 
 
 class NCMAPSSLmdbDatasetAll(NCMAPSSLmdbDataset):
-    """ Returns features X + other data + rul Y """
+    """Returns features X + other data + rul Y"""
+
     def __getitem__(self, i: int):
         sample, rul = super().__getitem__(i)
         ds_id = int(super().get(f"ds_id_{i}", numpy=False))
@@ -27,10 +32,14 @@ class NCMAPSSDataModule(pl.LightningDataModule):
     Instantiates LMDB reader for train, test and val, and constructs Pytorch
     Lightning loaders. This is the way to access generated LMDBs
     """
-    def __init__(self, data_path, batch_size, all_dset=False):
+
+    def __init__(self, data_path, batch_size, all_dset=False, val_ratio=0.1):
         super().__init__()
         self.data_path = data_path
         self.batch_size = batch_size
+        ds_list = ["train", "test"]
+        if Path(f"{self.data_path}/lmdb/val.lmdb").exists():
+            ds_list.append("val")
         if not all_dset:
             self.datasets = dict(
                 (
@@ -40,7 +49,7 @@ class NCMAPSSDataModule(pl.LightningDataModule):
                         "{}",
                     ),
                 )
-                for name in ["train", "val", "test"]
+                for name in ds_list
             )
         else:
             self.datasets = dict(
@@ -51,8 +60,26 @@ class NCMAPSSDataModule(pl.LightningDataModule):
                         "{}",
                     ),
                 )
-                for name in ["train", "val", "test"]
+                for name in ds_list
             )
+        if not "val" in ds_list:
+            val_len = int(val_ratio * len(self.datasets["train"]))
+            train_len = len(self.datasets["train"]) - val_len
+            print(
+                len(self.datasets["train"]),
+                train_len,
+                val_len,
+                train_len + val_len,
+            )
+            (
+                self.datasets["train"],
+                self.datasets["val"],
+            ) = torch.utils.data.random_split(
+                self.datasets["train"],
+                [train_len, val_len],
+                generator=torch.Generator().manual_seed(0),
+            )
+
         self.win_length, self.n_features = (
             int(self.datasets["train"].get("win_length", numpy=False)),
             self.datasets["train"].n_features,
@@ -60,14 +87,14 @@ class NCMAPSSDataModule(pl.LightningDataModule):
 
     @property
     def train_size(self):
-        return len(self.datasets['train'])
+        return len(self.datasets["train"])
 
     def train_dataloader(self):
         return DataLoader(
             self.datasets["train"],
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=0,
+            num_workers=12,
             pin_memory=True,
         )
 
@@ -76,7 +103,7 @@ class NCMAPSSDataModule(pl.LightningDataModule):
             self.datasets["val"],
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=0,
+            num_workers=12,
             pin_memory=True,
         )
 
@@ -84,7 +111,7 @@ class NCMAPSSDataModule(pl.LightningDataModule):
         return DataLoader(
             self.datasets["test"],
             batch_size=self.batch_size,
-            shuffle=False, # Important. do NOT shuffle or results will be false
-            num_workers=0,
+            shuffle=False,  # Important. do NOT shuffle or results will be false
+            num_workers=12,
             pin_memory=True,
         )
