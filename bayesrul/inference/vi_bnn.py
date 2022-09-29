@@ -94,7 +94,7 @@ class VI_BNN(Inference):
             pretrain_dir = Path(
                 self.base_log_dir,
                 "lightning_logs",
-                "version_0",
+                f"version_{self.trainer.logger.version}",
             )
             pretrain_dir.mkdir(exist_ok=True, parents=True)
             self.args["pretrain_file"] = Path(
