@@ -9,7 +9,7 @@ import pytorch_lightning as pl
 from bayesrul.inference.inference import Inference
 from bayesrul.lightning_wrappers.frequentist import DnnPretrainWrapper
 from bayesrul.lightning_wrappers.bayesian import VIBnnWrapper
-from bayesrul.utils.miscellaneous import get_checkpoint, TBLogger, Dotdict
+from bayesrul.utils.miscellaneous import get_checkpoint, Dotdict
 from bayesrul.utils.post_process import ResultSaver
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
@@ -71,11 +71,6 @@ class VI_BNN(Inference):
         self.base_log_dir = Path(args.out_path, directory, args.model_name)
         self.checkpoint_file = get_checkpoint(self.base_log_dir, version=None)
 
-        self.logger = TBLogger(
-            self.base_log_dir,
-            default_hp_metric=False,
-        )
-
     def _define_model(self):
         checkpoint_file = get_checkpoint(self.base_log_dir, version=None)
         if self.args["pretrain"] > 0 and checkpoint_file:
@@ -99,7 +94,7 @@ class VI_BNN(Inference):
             pretrain_dir = Path(
                 self.base_log_dir,
                 "lightning_logs",
-                f"version_{self.trainer.logger.version}",
+                "version_0",
             )
             pretrain_dir.mkdir(exist_ok=True, parents=True)
             self.args["pretrain_file"] = Path(
@@ -127,17 +122,17 @@ class VI_BNN(Inference):
             )
 
     def fit(self, epochs: int, monitor=None, another_GPU=None, early_stop=0):
-        if (monitor is not None) & (
-            ("bi_obj" not in self.base_log_dir.as_posix())
-            or ("single_obj" not in self.base_log_dir.as_posix())
-        ):
-            base = "/".join(self.base_log_dir.as_posix().split("/")[:-1])
-            end = self.base_log_dir.as_posix().split("/")[-1]
-            if len(monitor) == 1:
-                log_dir = Path(base, "single_obj", end)
-            else:
-                log_dir = Path(base, "bi_obj", end)
-            self.base_log_dir = log_dir
+        # if (monitor is not None) & (
+        #     ("bi_obj" not in self.base_log_dir.as_posix())
+        #     or ("single_obj" not in self.base_log_dir.as_posix())
+        # ):
+        #     base = "/".join(self.base_log_dir.as_posix().split("/")[:-1])
+        #     end = self.base_log_dir.as_posix().split("/")[-1]
+        #     if len(monitor) == 1:
+        #         log_dir = Path(base, "single_obj", end)
+        #     else:
+        #         log_dir = Path(base, "bi_obj", end)
+        #     self.base_log_dir = log_dir
 
         if another_GPU:
             GPU = another_GPU
@@ -150,7 +145,6 @@ class VI_BNN(Inference):
             devices=[self.GPU],
             max_epochs=epochs,
             log_every_n_steps=100,
-            logger=self.logger,
             callbacks=[
                 ModelCheckpoint(monitor=monitor),
                 EarlyStopping(monitor=monitor, patience=early_stop),
@@ -179,7 +173,6 @@ class VI_BNN(Inference):
             accelerator="gpu",
             devices=[self.GPU],
             log_every_n_steps=100,
-            logger=self.logger,
             max_epochs=-1,  # Silence warning
         )
 

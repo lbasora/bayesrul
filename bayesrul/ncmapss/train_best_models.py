@@ -89,7 +89,15 @@ if __name__ == "__main__":
         default=1e4,
         metavar="BATCH_SIZE",
         required=True,
-        help="Batch size (default: 10000",
+        help="Batch size (default: 10000)",
+    )
+    parser.add_argument(
+        "--num_runs",
+        type=int,
+        default=1,
+        metavar="NUM_RUNS",
+        required=True,
+        help="Number of runs (default: 1)",
     )
 
     args = parser.parse_args()
@@ -111,32 +119,39 @@ if __name__ == "__main__":
     except KeyError:
         pass
 
-    args.model_name = args.model
     data = NCMAPSSDataModule(args.data_path, batch_size=args.batch_size)
     monitor = "elbo/val" if isbayesian(model) else "gaussian_nll/val"
 
-    if isbayesian(model):
-        hyp["pretrain"] = 5
-        module = VI_BNN(args, data, hyp, GPU=args.GPU)
-    else:
-        if model == "MC_DROPOUT":
-            p_dropout = hyp["p_dropout"]
-            module = MCDropout(args, data, hyp["p_dropout"], hyp, GPU=args.GPU)
-        elif model == "DEEP_ENSEMBLE":
-            module = DeepEnsemble(
-                args, data, hyp["n_models"], hyp, GPU=args.GPU
-            )
-        elif model == "HETERO_NN":
-            module = HeteroscedasticDNN(args, data, hyp, GPU=args.GPU)
-        else:
-            raise ValueError(
-                f"Wrong model {model}. Available : MFVI, "
-                "RADIAL, LOWRANK, MC-DROPOUT, DEEP-ENSEMBLE, HETERO-NN"
-            )
+    run_int = int(args.model.split("_")[-1])
+    for i in range(run_int, run_int + args.num_runs):
+        args.model_name = model + "_" + f"{i:03}"
+        if args.num_runs > 1:
+            print(f"--------------- {args.model_name} -------------------")
 
-    module.fit(args.epochs, monitor=monitor, early_stop=args.early_stop)
-    module.test()
-    try:
-        module.epistemic_aleatoric_uncertainty(device=torch.device("cpu"))
-    except Exception:
-        pass
+        if isbayesian(model):
+            hyp["pretrain"] = 5
+            module = VI_BNN(args, data, hyp, GPU=args.GPU)
+        else:
+            if model == "MC_DROPOUT":
+                p_dropout = hyp["p_dropout"]
+                module = MCDropout(
+                    args, data, hyp["p_dropout"], hyp, GPU=args.GPU
+                )
+            elif model == "DEEP_ENSEMBLE":
+                module = DeepEnsemble(
+                    args, data, hyp["n_models"], hyp, GPU=args.GPU
+                )
+            elif model == "HETERO_NN":
+                module = HeteroscedasticDNN(args, data, hyp, GPU=args.GPU)
+            else:
+                raise ValueError(
+                    f"Wrong model {model}. Available : MFVI, "
+                    "RADIAL, LOWRANK, MC-DROPOUT, DEEP-ENSEMBLE, HETERO-NN"
+                )
+
+        module.fit(args.epochs, monitor=monitor, early_stop=args.early_stop)
+        module.test()
+        try:
+            module.epistemic_aleatoric_uncertainty(device=torch.device("cpu"))
+        except Exception:
+            pass

@@ -9,7 +9,6 @@ from bayesrul.inference.inference import Inference
 from bayesrul.lightning_wrappers.frequentist import DnnWrapper
 from bayesrul.utils.miscellaneous import (
     Dotdict,
-    TBLogger,
     get_checkpoint,
     numel,
 )
@@ -57,11 +56,6 @@ class HeteroscedasticDNN(Inference):
         directory = "studies" if studying else "frequentist"
         self.base_log_dir = Path(args.out_path, directory, args.model_name)
 
-        self.logger = TBLogger(
-            str(self.base_log_dir),
-            default_hp_metric=False,
-        )
-
     def _define_model(self):
         self.checkpoint_file = get_checkpoint(self.base_log_dir, version=None)
         if self.checkpoint_file:
@@ -85,7 +79,6 @@ class HeteroscedasticDNN(Inference):
             devices=[self.GPU],
             max_epochs=epochs,
             log_every_n_steps=100,
-            logger=self.logger,
             callbacks=[
                 ModelCheckpoint(monitor=monitor),
                 EarlyStopping(monitor=monitor, patience=early_stop),
@@ -106,7 +99,6 @@ class HeteroscedasticDNN(Inference):
             accelerator="gpu",
             devices=[self.GPU],
             log_every_n_steps=100,
-            logger=self.logger,
             max_epochs=-1,
         )  # Silence warning
 

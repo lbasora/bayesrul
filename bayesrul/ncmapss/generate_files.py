@@ -1,10 +1,16 @@
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from types import SimpleNamespace
-from .preprocessing import generate_parquet, generate_lmdb, generate_unittest_subsample
+from .preprocessing import (
+    generate_parquet,
+    generate_lmdb,
+    generate_unittest_subsample,
+)
 
 
-@hydra.main(version_base=None, config_path="../conf", config_name="generate_files")
+@hydra.main(
+    version_base=None, config_path="../conf", config_name="generate_files"
+)
 def main(cfg: DictConfig) -> None:
     print(OmegaConf.to_yaml(cfg))
     print(cfg.out_path)

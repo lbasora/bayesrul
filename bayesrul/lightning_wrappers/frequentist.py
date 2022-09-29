@@ -220,12 +220,12 @@ class DnnWrapper(pl.LightningModule):
             for i in range(100):
                 if self.out_size == 2:
                     loss, loc, scale = self._compute_loss(
-                        batch, "val", return_pred=True
+                        batch, "test", return_pred=True
                     )
                     scales.append(scale)
                 else:
                     loss, loc = self._compute_loss(
-                        batch, "val", return_pred=True
+                        batch, "test", return_pred=True
                     )
                 preds.append(loc)
                 losses.append(loss)

@@ -110,7 +110,9 @@ def get_all_metrics(names: List[str]) -> pd.DataFrame:
             y_pred = torch.tensor(
                 results["preds"].values, device=torch.device("cuda:0")
             )
-            std = torch.tensor(results["stds"].values, device=torch.device("cuda:0"))
+            std = torch.tensor(
+                results["stds"].values, device=torch.device("cuda:0")
+            )
 
             sharp = sharpness(std).cpu().item()
             rmsce = rms_calibration_error(y_pred, std, y_true).cpu().item()
@@ -119,7 +121,9 @@ def get_all_metrics(names: List[str]) -> pd.DataFrame:
             # nasa = nasa_scoring_function(y_true, y_pred)
             rmse = torch.sqrt(((y_true - y_pred) ** 2).mean()).cpu().item()
 
-            row = pd.Series(data=[rmse, nll, rmsce, sharp], index=COLUMNS, name=name)
+            row = pd.Series(
+                data=[rmse, nll, rmsce, sharp], index=COLUMNS, name=name
+            )
             df.loc[name] = row
             # print(f"NASA : {nasa}")
         except FileNotFoundError as e:
@@ -229,67 +233,70 @@ def results_by_unit(df):
     pass
 
 
-def latex_formatted(df_mean: pd.DataFrame, df_std: pd.DataFrame=None) -> str:
-    """ Formats Pandas DataFrame into LaTeX table code """
-    s = df_mean.style.highlight_min(subset=df_mean.columns, 
-            props="textbf:--rwrap;", axis=0)
+def latex_formatted(df_mean: pd.DataFrame, df_std: pd.DataFrame = None) -> str:
+    """Formats Pandas DataFrame into LaTeX table code"""
+    s = df_mean.style.highlight_min(
+        subset=df_mean.columns, props="textbf:--rwrap;", axis=0
+    )
     s = s.format(precision=3)
 
     return s.to_latex(hrules=True).replace("_", " ")
 
 
 def weighted(cats: List[str], cols=["labels", "preds", "relative_time"]):
-    """ Computes the mean of a column by dataset and unit, for each model
-    
+    """Computes the mean of a column by dataset and unit, for each model
+
     Parameters
     ----------
     cats : list of str
-        Names of the categories of results to process ['LRT', 'FLIPOUT']...  
+        Names of the categories of results to process ['LRT', 'FLIPOUT']...
 
     Returns : pd.DataFrame
         df with ds_id and unit_id as index, and the categories as columns
     """
     dfs = []
     values = []
-    for cat in cats: # Meow
+    for cat in cats:  # Meow
         names = get_dirs_startingby(cat)
         all_family = get_all_data(names)
 
         # Compute the mean of all results across all runs of the category
-        #df = pd.Panel(all_family).mean(axis=0) # Deprecated...
-        df = pd.concat(all_family).reset_index().groupby('index').mean()
-        
-        df = post_process(df, data_path='data/ncmapss')
+        # df = pd.Panel(all_family).mean(axis=0) # Deprecated...
+        df = pd.concat(all_family).reset_index().groupby("index").mean()
 
-        df = df.reset_index().set_index(['index', 'ds_id', 'unit_id'])
-        
+        df = post_process(df, data_path="data/ncmapss")
+
+        df = df.reset_index().set_index(["index", "ds_id", "unit_id"])
+
         df = df[cols]
         for col in cols:
-            df.rename(columns = {col: f"{cat}_{col}"}, inplace=True)
+            df.rename(columns={col: f"{cat}_{col}"}, inplace=True)
 
-        df[f"{cat}_rmse"] = np.sqrt((df[f"{cat}_labels"] - df[f"{cat}_preds"])**2)
+        df[f"{cat}_rmse"] = np.sqrt(
+            (df[f"{cat}_labels"] - df[f"{cat}_preds"]) ** 2
+        )
         to_divide = df[f"{cat}_relative_time"].sum()
         df[f"{cat}_weighted"] = df[f"{cat}_rmse"] * df[f"{cat}_relative_time"]
         values.append(df[f"{cat}_weighted"].sum() / to_divide)
-        
+
         dfs.append(df[f"{cat}_weighted"])
-    
-    all_weighted = pd.concat(dfs, axis=1).reset_index().drop(columns={'index'})
+
+    all_weighted = pd.concat(dfs, axis=1).reset_index().drop(columns={"index"})
 
     values = pd.Series(data=values, index=cats)
     return values, all_weighted
 
 
 if __name__ == "__main__":
-<<<<<<< Updated upstream
-    #df = col_by_ds_unit(["LRT", "FLIPOUT", "RADIAL", "MC_DROPOUT", "DEEP_ENSEMBLE", "HETERO_NN"], "stds")
-    vals, _ = weighted(["LRT", "FLIPOUT", "RADIAL", "MC_DROPOUT", "DEEP_ENSEMBLE", "HETERO_NN"])
-    df_means, _ = fuse_by_category(["LRT", "FLIPOUT", "RADIAL", "MC_DROPOUT", "DEEP_ENSEMBLE", "HETERO_NN"])
-    df_means = pd.concat([vals, df_means], axis=1).rename(columns = {0: "RMSE_Weighted-"})
+    # df = col_by_ds_unit(["LRT", "FLIPOUT", "RADIAL", "MC_DROPOUT", "DEEP_ENSEMBLE", "HETERO_NN"], "stds")
+    vals, _ = weighted(
+        ["LRT", "FLIPOUT", "RADIAL", "MC_DROPOUT", "DEEP_ENSEMBLE", "HETERO_NN"]
+    )
+    df_means, _ = fuse_by_category(
+        ["LRT", "FLIPOUT", "RADIAL", "MC_DROPOUT", "DEEP_ENSEMBLE", "HETERO_NN"]
+    )
+    df_means = pd.concat([vals, df_means], axis=1).rename(
+        columns={0: "RMSE_Weighted-"}
+    )
 
     print(latex_formatted(df_means))
-=======
-    col_by_ds_unit(
-        ["LRT", "FLIPOUT", "RADIAL", "MC_DROPOUT", "DEEP_ENSEMBLE", "HETERO_NN"], "stds"
-    )
->>>>>>> Stashed changes

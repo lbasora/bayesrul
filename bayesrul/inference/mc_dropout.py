@@ -10,7 +10,6 @@ from bayesrul.inference.inference import Inference
 from bayesrul.lightning_wrappers.frequentist import DnnWrapper
 from bayesrul.utils.miscellaneous import (
     Dotdict,
-    TBLogger,
     enable_dropout,
     get_checkpoint,
     numel,
@@ -69,11 +68,6 @@ class MCDropout(Inference):
 
         self.checkpoint_file = get_checkpoint(self.base_log_dir, version=None)
 
-        self.logger = TBLogger(
-            Path(self.base_log_dir),
-            default_hp_metric=False,
-        )
-
     def _define_model(self, device=None):
         if device is not None:
             self.args.device = device
@@ -101,7 +95,6 @@ class MCDropout(Inference):
             devices=[self.GPU],
             max_epochs=epochs,
             log_every_n_steps=100,
-            logger=self.logger,
             callbacks=[
                 ModelCheckpoint(monitor=monitor),
                 EarlyStopping(monitor=monitor, patience=early_stop),
@@ -124,7 +117,6 @@ class MCDropout(Inference):
             accelerator="gpu",
             devices=[self.GPU],
             log_every_n_steps=100,
-            logger=self.logger,
             max_epochs=-1,
         )  # Silence warning
 

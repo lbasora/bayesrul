@@ -19,14 +19,6 @@ class Dotdict(dict):
     __delattr__ = dict.__delitem__
 
 
-# To get rid of the tensorboard epoch plot
-class TBLogger(pl.loggers.TensorBoardLogger):
-    @rank_zero_only
-    def log_metrics(self, metrics, step):
-        metrics.pop("epoch", None)
-        return super().log_metrics(metrics, step)
-
-
 def assert_same_shapes(*args):
     assert len(args) > 1, "Needs to be provided more than one argument"
     shape = args[0].shape
