@@ -62,12 +62,6 @@ if __name__ == "__main__":
         help="GPU index (ex: 1)",
     )
     parser.add_argument(
-        "--debug",
-        action="store_true",
-        default=False,
-        help="Whether in debug mode (default: False)",
-    )
-    parser.add_argument(
         "--early-stop",
         type=int,
         default=0,
@@ -102,13 +96,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.epochs is None:
-        args.epochs = 2 if args.debug else 1500
-
-    path = "results/ncmapss/best_models"
-
     model = "_".join(args.model.split("_")[:-1])
-    model_path = Path(path, model)
+    model_path = Path("results/ncmapss/best_models", model)
     ls = sorted(list(model_path.glob("*.json")))
 
     with open(ls[0], "r") as f:
@@ -125,6 +114,7 @@ if __name__ == "__main__":
     run_int = int(args.model.split("_")[-1])
     for i in range(run_int, run_int + args.num_runs):
         args.model_name = model + "_" + f"{i:03}"
+
         if args.num_runs > 1:
             print(f"--------------- {args.model_name} -------------------")
 

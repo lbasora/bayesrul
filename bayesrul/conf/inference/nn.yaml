@@ -1,0 +1,4 @@
+activation: leaky_relu
+archi: bigception
+lr: 0.0005
+optimizer: adam

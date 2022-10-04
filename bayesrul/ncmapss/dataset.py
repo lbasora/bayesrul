@@ -1,7 +1,8 @@
-import torch
 from pathlib import Path
+
 import pytorch_lightning as pl
-from torch.utils.data import DataLoader
+import torch
+from torch.utils.data import DataLoader, random_split
 
 from ..utils.lmdb_utils import LmdbDataset
 
@@ -21,10 +22,9 @@ class NCMAPSSLmdbDatasetAll(NCMAPSSLmdbDataset):
     def __getitem__(self, i: int):
         sample, rul = super().__getitem__(i)
         ds_id = int(super().get(f"ds_id_{i}", numpy=False))
-        traj_id = int(float(super().get(f"unit_id_{i}", numpy=False)))
+        unit_id = int(float(super().get(f"unit_id_{i}", numpy=False)))
         win_id = int(super().get(f"win_id_{i}", numpy=False))
-        settings = super().get(f"settings_{i}", numpy=True)
-        return ds_id, traj_id, win_id, settings.copy(), rul, sample
+        return ds_id, unit_id, win_id, rul, sample
 
 
 class NCMAPSSDataModule(pl.LightningDataModule):
@@ -33,85 +33,72 @@ class NCMAPSSDataModule(pl.LightningDataModule):
     Lightning loaders. This is the way to access generated LMDBs
     """
 
-    def __init__(self, data_path, batch_size, all_dset=False, val_ratio=0.1):
+    def __init__(self, data_path, batch_size, all_dset=False, num_workers=12):
         super().__init__()
         self.data_path = data_path
         self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.all_dset = all_dset
+
         ds_list = ["train", "test"]
         if Path(f"{self.data_path}/lmdb/val.lmdb").exists():
             ds_list.append("val")
-        if not all_dset:
-            self.datasets = dict(
-                (
-                    name,
-                    NCMAPSSLmdbDataset(
-                        f"{self.data_path}/lmdb/{name}.lmdb",
-                        "{}",
-                    ),
-                )
-                for name in ds_list
-            )
-        else:
-            self.datasets = dict(
-                (
-                    name,
-                    NCMAPSSLmdbDatasetAll(
-                        f"{self.data_path}/lmdb/{name}.lmdb",
-                        "{}",
-                    ),
-                )
-                for name in ds_list
-            )
-        if not "val" in ds_list:
-            val_len = int(val_ratio * len(self.datasets["train"]))
-            train_len = len(self.datasets["train"]) - val_len
-            print(
-                len(self.datasets["train"]),
-                train_len,
-                val_len,
-                train_len + val_len,
-            )
+        self.datasets = dict(
             (
-                self.datasets["train"],
-                self.datasets["val"],
-            ) = torch.utils.data.random_split(
-                self.datasets["train"],
-                [train_len, val_len],
-                generator=torch.Generator().manual_seed(0),
+                name,
+                NCMAPSSLmdbDatasetAll(
+                    f"{self.data_path}/lmdb/{name}.lmdb",
+                    "{}",
+                )
+                if self.all_dset
+                else NCMAPSSLmdbDataset(
+                    f"{self.data_path}/lmdb/{name}.lmdb",
+                    "{}",
+                ),
             )
-
+            for name in ds_list
+        )
         self.win_length, self.n_features = (
             int(self.datasets["train"].get("win_length", numpy=False)),
             self.datasets["train"].n_features,
         )
 
     @property
-    def train_size(self):
+    def train_size(self) -> int:
         return len(self.datasets["train"])
 
-    def train_dataloader(self):
+    def random_split(self, val_ratio: float) -> tuple:
+        val_len = int(val_ratio * len(self.datasets["train"]))
+        train_len = len(self.datasets["train"]) - val_len
+        return random_split(
+            self.datasets["train"],
+            [train_len, val_len],
+            generator=torch.Generator().manual_seed(0),
+        )
+
+    def train_dataloader(self) -> DataLoader:
         return DataLoader(
             self.datasets["train"],
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=12,
+            num_workers=self.num_workers,
             pin_memory=True,
         )
 
-    def val_dataloader(self):
+    def val_dataloader(self) -> DataLoader:
         return DataLoader(
             self.datasets["val"],
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=12,
+            num_workers=self.num_workers,
             pin_memory=True,
         )
 
-    def test_dataloader(self):
+    def test_dataloader(self) -> DataLoader:
         return DataLoader(
             self.datasets["test"],
             batch_size=self.batch_size,
             shuffle=False,  # Important. do NOT shuffle or results will be false
-            num_workers=12,
+            num_workers=self.num_workers,
             pin_memory=True,
         )

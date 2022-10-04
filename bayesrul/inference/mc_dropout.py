@@ -94,7 +94,7 @@ class MCDropout(Inference):
             accelerator="gpu",
             devices=[self.GPU],
             max_epochs=epochs,
-            log_every_n_steps=100,
+            log_every_n_steps=20,
             callbacks=[
                 ModelCheckpoint(monitor=monitor),
                 EarlyStopping(monitor=monitor, patience=early_stop),

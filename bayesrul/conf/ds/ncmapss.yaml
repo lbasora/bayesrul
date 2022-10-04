@@ -1,0 +1,16 @@
+data_path: "data/new_ncmapss/"
+out_path: "data/new_ncmapss/"
+val_ratio : 0.1
+files:
+  - N-CMAPSS_DS01-005
+  - N-CMAPSS_DS02-006
+  - N-CMAPSS_DS03-012
+  - N-CMAPSS_DS04
+  - N-CMAPSS_DS05
+subdata:
+  - X_s
+  - A
+win_length: 30
+win_step: 10
+skip_obs: 10
+bits: 32

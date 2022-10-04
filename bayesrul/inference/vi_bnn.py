@@ -13,7 +13,7 @@ from bayesrul.utils.miscellaneous import get_checkpoint, Dotdict
 from bayesrul.utils.post_process import ResultSaver
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
-DEBUG = False
+DEBUG = True
 
 
 class VI_BNN(Inference):
@@ -122,18 +122,6 @@ class VI_BNN(Inference):
             )
 
     def fit(self, epochs: int, monitor=None, another_GPU=None, early_stop=0):
-        # if (monitor is not None) & (
-        #     ("bi_obj" not in self.base_log_dir.as_posix())
-        #     or ("single_obj" not in self.base_log_dir.as_posix())
-        # ):
-        #     base = "/".join(self.base_log_dir.as_posix().split("/")[:-1])
-        #     end = self.base_log_dir.as_posix().split("/")[-1]
-        #     if len(monitor) == 1:
-        #         log_dir = Path(base, "single_obj", end)
-        #     else:
-        #         log_dir = Path(base, "bi_obj", end)
-        #     self.base_log_dir = log_dir
-
         if another_GPU:
             GPU = another_GPU
         else:
@@ -142,9 +130,9 @@ class VI_BNN(Inference):
         self.trainer = pl.Trainer(
             default_root_dir=str(self.base_log_dir),
             accelerator="gpu",
-            devices=[self.GPU],
+            devices=[GPU],
             max_epochs=epochs,
-            log_every_n_steps=100,
+            log_every_n_steps=20,
             callbacks=[
                 ModelCheckpoint(monitor=monitor),
                 EarlyStopping(monitor=monitor, patience=early_stop),

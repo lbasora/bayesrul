@@ -87,7 +87,7 @@ def get_all_metrics(names: List[str]) -> pd.DataFrame:
         Names of the results to compute (LRT_000, LRT_001...)
 
     Returns : pd.DataFrame
-        df with a extra columns (ds_id, traj_id, win_id and engine_id)
+        df with a extra columns (ds_id, unit_id, win_id and engine_id)
     """
 
     if isinstance(names, str):

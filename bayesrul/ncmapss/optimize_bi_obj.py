@@ -83,7 +83,7 @@ def lrt_objective(trial: optuna.trial.Trial) -> float:
     args.pretrain = 5 
     args.model_name = f'lrt_{trial.number:03d}'
         
-    data = NCMAPSSDataModule(args.data_path, batch_size=10000)
+    data = (args.data_path, batch_size=10000)
     
     hyperparams = {
         'bias' : True,

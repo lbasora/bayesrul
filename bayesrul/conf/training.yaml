@@ -1,0 +1,6 @@
+training:
+  model: null
+  gpu: 0
+  early-stop: 20
+  epochs: 2000
+  batch_size: 1000 

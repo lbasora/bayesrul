@@ -1,27 +1,18 @@
 import logging
+import shutil
 import warnings
-from typing import List, Any, NamedTuple, Callable, Dict, Iterator, Union
 from pathlib import Path
+from typing import Callable, Dict, Iterator, List, NamedTuple, Optional, Union
+
+import h5py
+from torch.utils.data import Dataset
 from tqdm import tqdm
 
 import numpy as np
 import pandas as pd
-import h5py
-import os
-import re
+from bayesrul.ncmapss.dataset import NCMAPSSDataModule
 
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
-from ..utils.lmdb_utils import create_lmdb, make_slice
-
-################################################################################
-################################################################################
-#
-# Add preprocessing for 'A' subset : one-hot or entity embedding for flight
-# class etc.
-#
-################################################################################
-################################################################################
-
+from ..utils.lmdb_utils import StandardScalerTransform, create_lmdb, make_slice
 
 ncmapss_files = [
     "N-CMAPSS_DS01-005",
@@ -89,253 +80,143 @@ ncmapss_datanames = {
 }
 
 
-def generate_parquet(args) -> None:
-    """Generates parquet files in args.out_path
-
-    Parameters
-    ----------
-    arg : SimpleNamespace
-        arguments to forward (out_path, normalization, validation...)
-
-    Returns
-    -------
-    None
-    """
-    if args.bits == 32:
-        typ = np.float32
-    else:
-        typ = np.float64
-
-    # columns, mean, std = compute_scalers(args, typ)
-
-    for i, filename in enumerate(args.files):
-        logging.info("**** %s ****" % filename)
-        logging.info("normalization = standardization")  # + args.normalization)
-        logging.info("validation = " + str(args.validation))
-
-        filepath = os.path.join(args.out_path, filename)
-
-        print(f"Extracting dataframes of {filename}...")
-
-        train, val, test = extract_validation(
-            filepath=filepath,
-            typ=typ,
-            vars=args.subdata,
-            validation=args.validation,
+def generate_lmdb(args) -> None:
+    """Parquet files to lmdb files"""
+    lmdb_dir = Path(f"{args.out_path}/lmdb")
+    lmdb_dir.mkdir(exist_ok=True)
+    lmdb_dir_files = [x for x in lmdb_dir.iterdir()]
+    if len(lmdb_dir_files) > 0:
+        warnings.warn(
+            f"{lmdb_dir} is not empty. Generation will not overwrite"
+            " the previously generated .lmdb files. It will append data."
         )
-
-        match = re.search(r"DS[0-9]{2}", filename)  # Extract DS0?
-
-        filename = match[0]
-
-        if args.moving_avg:
-            saved_cols = train[["unit", "cycle", "Fc", "rul"]]
-            train = (
-                train.drop(columns=["Fc", "rul"])
-                .groupby(["unit", "cycle"])
-                .transform(lambda x: x.rolling(10, 1).mean())
-            )
-            train = pd.concat([train, saved_cols], axis=1)
-            saved_cols = test[["unit", "cycle", "Fc", "rul"]]
-            test = (
-                test.drop(columns=["Fc", "rul"])
-                .groupby(["unit", "cycle"])
-                .transform(lambda x: x.rolling(10, 1).mean())
-            )
-            test = pd.concat([test, saved_cols], axis=1)
-            saved_cols = val[["unit", "cycle", "Fc", "rul"]]
-            val = (
-                val.drop(columns=["Fc", "rul"])
-                .groupby(["unit", "cycle"])
-                .transform(lambda x: x.rolling(10, 1).mean())
-            )
-            val = pd.concat([val, saved_cols], axis=1)
-
-        # train[columns] -= mean; train[columns] /= std
-        # val[columns] -= mean; val[columns] /= std
-        # test[columns] -= mean; test[columns] /= std
-
-        print(f"Generating parquet file {filename}")
-        path = Path(args.out_path, "parquet")
-        path.mkdir(exist_ok=True)
-        for df, prefix in zip([train, val, test], ["train", "val", "test"]):
-            if isinstance(df, pd.DataFrame) and not df.empty:
-                df.to_parquet(f"{path}/{prefix}_{filename}.parquet", engine="pyarrow")
-
-
-def generate_unittest_subsample(args, vars=["X_s", "A"]) -> None:
-    """Generates parquet file in args.out_path.
-    Called by hand in dev -> Not used in project
-
-    Parameters
-    ----------
-    args : SimpleNamespace
-        arguments to forward (out_path, normalization, validation...)
-
-    Returns
-    -------
-    None
-    """
-
-    filename = args.files[0]
-
-    filepath = os.path.join(args.out_path, filename)
-
-    df_train, df_test = _load_data_from_file(filepath, vars=vars)
-    df_train = df_train[::10000]  # Huge downsample
-    df_test = df_test[::10000]
-
-    df_train = linear_piece_wise_RUL(df_train.copy(), drop_hs=False)
-    df_test = linear_piece_wise_RUL(df_test.copy(), drop_hs=False)
-
-    nosearchfor = ["unit", "cycle", "Fc", "hs", "rul"]
-    columns = df_train.columns[~(df_train.columns.str.contains("|".join(nosearchfor)))]
-    # Normalization
-    df_train[columns] = (df_train[columns] - df_train[columns].mean()) / df_train[
-        columns
-    ].std()
-    df_test[columns] = (df_test[columns] - df_test[columns].mean()) / df_test[
-        columns
-    ].std()
-
-    path = Path(args.test_path, "parquet/")
-    path.mkdir(exist_ok=True)
-    for df, prefix in zip([df_train, df_test], ["train", "test"]):
-        if isinstance(df, pd.DataFrame):
-            df.to_parquet(f"{path}/{prefix}_{filename}.parquet")
-
-
-def compute_scalers(args, typ, arg="") -> Any:
-    """Compute sums for mean and std to scale multiple dataframes
-        As we cannot load every file, they have to be processed one at a time
-        However, the same normalization should be applied to every file
-
-    Parameters
-    ----------
-    args : SimpleNamespace
-        arguments to forward (out_path, normalization, validation...)
-    typ : numpy type
-        What precision to have for the dataframe values (np.float64, 32...)
-
-    Returns
-    -------
-    columns : list of str
-        which columns to scale
-    means : pd.Series
-        means of the columns to scale (names as index)
-    stds : pd.Series
-        stds of the columns to scale (names as index)
-
-    Raises
-    ------
-    AssertionError
-        When df is not a pd.DataFrame
-    ValueError
-        When neither arg or scaler is provided
-        When arg is not in ['', 'minmax', 'standard']
-    """
-
-    summ = None  # train, val, test
-    std = None
-    total_size = 0
-    nosearchfor = ["unit", "cycle", "Fc", "hs", "rul"]
-
-    print(f"Compute scaling parameters for {len(args.files)} files. Can be long")
-    for i, filename in enumerate(tqdm(args.files)):
-        filepath = os.path.join(args.out_path, filename)
-        train, val, test = extract_validation(
-            filepath=filepath,
-            typ=typ,
-            vars=args.subdata,
-            validation=args.validation,
+    features = []
+    features.extend(ncmapss_datanames["W"])  # We treat W as input data
+    for key in ncmapss_datanames:
+        if (key == "Y") or (key not in args.subdata):
+            continue
+        else:
+            features.extend(ncmapss_datanames[key])
+    for ds in ["train", "test"]:
+        filelist = list(
+            Path(args.data_path, filename) for filename in args.files
         )
-
-        if args.moving_avg:
-            saved_cols = train[["unit", "cycle", "Fc", "rul"]]
-            train = (
-                train.drop(columns=["Fc", "rul"])
-                .groupby(["unit", "cycle"])
-                .transform(lambda x: x.rolling(10, 1).mean())
+        logging.info(
+            f"Generating {ds} lmdb with {[x.as_posix() for x in filelist]} files..."
+        )
+        if filelist is not None:
+            iterator = process_files(
+                filelist,
+                "dev" if ds == "train" else "test",
+                args.bits,
+                args.win_length,
+                args.win_step,
+                features,
+                args.subdata,
+                args.skip_obs,
             )
-            train = pd.concat([train, saved_cols], axis=1)
-            saved_cols = test[["unit", "cycle", "Fc", "rul"]]
-            test = (
-                test.drop(columns=["Fc", "rul"])
-                .groupby(["unit", "cycle"])
-                .transform(lambda x: x.rolling(10, 1).mean())
-            )
-            test = pd.concat([test, saved_cols], axis=1)
-            saved_cols = val[["unit", "cycle", "Fc", "rul"]]
-            val = (
-                val.drop(columns=["Fc", "rul"])
-                .groupby(["unit", "cycle"])
-                .transform(lambda x: x.rolling(10, 1).mean())
-            )
-            val = pd.concat([val, saved_cols], axis=1)
-
-        columns = val.columns[~(val.columns.str.contains("|".join(nosearchfor)))]
-
-        total_size += len(train)  # + len(val) + len(test)
-        for i, df in enumerate([train]):  # , val, test]):
-            if summ is None:
-                summ = df[columns].sum(axis=0)
-                var = df[columns].var(axis=0) * len(df)
-            else:
-                summ += df[columns].sum(axis=0)
-                var += df[columns].var(axis=0) * len(df)
-
-    mean = summ / total_size
-    var = var / total_size
-    std = np.sqrt(var)
-
-    return columns, mean, std
+            feed_lmdb(Path(f"{lmdb_dir}/{ds}.lmdb"), iterator, args)
 
 
-def choose_units_for_validation(unit_repartition, validation) -> List[int]:
-    """Chooses which test unit to put in val set according to wanted val %.
+class Line(NamedTuple):  # An N-CMAPSS Line
+    ds_id: int  # Which ds
+    unit_id: int  # Which unit
+    win_id: int  # Window id
+    data: np.ndarray  # X_s, X_v, T, A (not necessarily all of them)
+    rul: int  # Y
+
+
+def process_files(
+    filelist: List[Path],
+    dev_test: str,
+    bits: int,
+    win_length: int,
+    win_step: int,
+    features: List[str],
+    subdata: List[str],
+    skip_obs: Optional[int] = None,
+) -> Iterator[Line]:
+
+    for filename in tqdm(filelist):
+        df = load_data_from_file(
+            filename,
+            dev_test,
+            np.float32 if bits == 32 else np.float64,
+            vars=subdata,
+        )
+        if "A" in subdata:
+            df = linear_piece_wise_RUL(df.copy())
+        if skip_obs is not None:
+            df = df[::skip_obs]
+        ds_id = int(str(filename.stem).split("_")[-1].split("-")[0][3])
+        yield from process_dataframe(df, ds_id, win_length, win_step, features)
+        del df
+
+
+def load_data_from_file(
+    filepath, dev_test_suffix, dtype=np.float64, vars=["X_s", "X_v", "T", "A"]
+):
+    """Load data from source file into a dataframe.
 
     Parameters
     ----------
-    unit_repartition : pd.Series
-        % of data points repartition among units.
-    validation : float
-        Wanted % of validation data.
+    file : str
+        Source file.
+    vars : list
+        May contain 'X_s', 'X_v', 'T', 'A'
+        W: Scenario Descriptors (always included)
+        X_s: Measurements
+        X_v: Virtual sensors
+        T: Health Parameters
+        A: Auxiliary Data
+        Y: rul (always included)
 
     Returns
     -------
-    List[int]
-        chosen units IDs
+    DataFrame
+        Data organized into a dataframe.
     """
-    assert (
-        np.abs(unit_repartition.sum() - 1) <= 1e-7
-    ), "Frequencies don't add up to 1 ({})".format(unit_repartition.sum())
-    assert len(unit_repartition[unit_repartition == 0]) == 0
 
-    unit_repartition.sort_index(inplace=True)
-    val_diff = (unit_repartition - validation).sort_values()
-    below_subset = unit_repartition[unit_repartition < validation]
+    assert all(
+        [x in ["X_s", "X_v", "T", "A"] for x in vars]
+    ), "Wrong vars provided, choose a subset of ['X_s', 'X_v', 'T', 'A']"
+    assert filepath.name in ncmapss_files, "Incorrect file name {}".format(
+        filepath
+    )
 
-    if any(np.abs(val_diff) <= 0.05):  # Take the closest unit if close enough
-        unit = val_diff.abs().argmin()
-        units = [val_diff.index[unit]]
+    if ".h5" not in filepath.name:
+        filepath = filepath.with_suffix(".h5")
 
-    elif len(below_subset) >= 2:  # Possible to choose among subsets. Take the first
-        # subset with data % > validation. Choosing the best one could take
-        # 2^len(subset), that could be too much to compute
-        units = []
-        percent = 0
-        i = 0
-        while percent < validation:
-            units.append(unit_repartition.index[i])
-            percent += unit_repartition.values[i]
-            i += 1
+    with h5py.File(filepath, "r") as hdf:
+        data = []
+        varnames = []
 
-    else:  # Take the closest unit (can't do better !)
-        unit = val_diff.abs().argmin()
-        units = [val_diff.index[unit]]
+        data.append(np.array(hdf.get(f"W_{dev_test_suffix}")))
+        varnames.extend(hdf.get("W_var"))
 
-    assert isinstance(units, list)
-    return units
+        if "X_s" in vars:
+            data.append(np.array(hdf.get(f"X_s_{dev_test_suffix}")))
+            varnames.extend(hdf.get("X_s_var"))
+        if "X_v" in vars:
+            data.append(np.array(hdf.get(f"X_v_{dev_test_suffix}")))
+            varnames.extend(hdf.get("X_v_var"))
+        if "T" in vars:
+            data.append(np.array(hdf.get(f"T_{dev_test_suffix}")))
+            varnames.extend(hdf.get("T_var"))
+        if "A" in vars:
+            data.append(np.array(hdf.get(f"A_{dev_test_suffix}")))
+            varnames.extend(hdf.get("A_var"))
+
+        # Add RUL
+        data.append(np.array(hdf.get(f"Y_{dev_test_suffix}")))
+
+    varnames = list(np.array(varnames, dtype="U20"))  # Strange string types
+    varnames = [str(x) for x in varnames]
+    varnames.append("rul")
+
+    return pd.DataFrame(
+        data=np.concatenate(data, axis=1), columns=varnames, dtype=dtype
+    )
 
 
 def linear_piece_wise_RUL(df: pd.DataFrame, drop_hs=True) -> pd.DataFrame:
@@ -361,7 +242,9 @@ def linear_piece_wise_RUL(df: pd.DataFrame, drop_hs=True) -> pd.DataFrame:
     healthy = df[df.hs == 1]  # Filter on healthy
 
     mergedhealthy = healthy.merge(
-        healthy.groupby(["unit", "hs"])["rul"].min(), how="inner", on=["unit", "hs"]
+        healthy.groupby(["unit", "hs"])["rul"].min(),
+        how="inner",
+        on=["unit", "hs"],
     )  # Compute the max linear rul
     df = df.merge(mergedhealthy, how="left", on=list(df.columns[:-1])).drop(
         columns=["rul_x"]
@@ -380,264 +263,98 @@ def linear_piece_wise_RUL(df: pd.DataFrame, drop_hs=True) -> pd.DataFrame:
     return df
 
 
-def extract_validation(
-    filepath, typ=np.float64, vars=["X_s", "X_v", "T", "A"], validation=0.00
-):
-    """Extract train, validation and test dataframe from source file.
+def process_dataframe(
+    df: pd.DataFrame,
+    ds_id: int,
+    win_length: int,
+    win_step: int,
+    features: List[str],
+) -> Iterator[Line]:
 
-    Parameters
-    ----------
-    filepath : str
-        .h5 data file
-    vars : str, optional
-        Which variables to extract from .h5 file
-    validation : float, optional
-        Ratio of training samples to hold out for validation.
-
-    Returns
-    -------
-    (pd.DataFrame, pd.DataFrame, pd.DataFrame)
-        Train dataframe, validation dataframe, test dataframe.
-    """
-    assert 0 <= validation <= 1, (
-        "'validation' must be a value within [0, 1], got %.2f" % validation + "."
-    )
-
-    df_train, df_test = _load_data_from_file(filepath, typ=typ, vars=vars)
-
-    if "A" in vars:
-        df_train = linear_piece_wise_RUL(df_train.copy())
-        df_test = linear_piece_wise_RUL(df_test.copy())
-    else:
-        warnings.warn(
-            "'A' auxiliary variables subset was not selected."
-            " RUL label will not be transformed to piece-wise linear because "
-            " health state (hs) belongs to the auxiliary subset. "
+    pbar_unit = tqdm(df.groupby("unit"), leave=False, position=1)
+    for unit_id, traj in pbar_unit:
+        pbar_unit.set_description(f"Unit {int(unit_id)}")
+        pbar_win = tqdm(
+            make_slice(traj.shape[0], win_length, win_step),
+            leave=False,
+            total=traj.shape[0] / win_step,
+            position=2,
         )
-
-    # Percentage of datapoints across all units (engines)
-    unit_repartition = (
-        df_train.groupby("unit")["rul"].count()
-        / df_train.groupby("unit")["rul"].count().sum()
-    )
-
-    # Splits the train set into val + train
-    if validation > 0:
-        # Choose which engines to put in val set
-        units = choose_units_for_validation(unit_repartition, validation)
-        # Perform the transfer of the chosen units data
-        df_val = df_train[df_train.unit.isin(units)]
-        df_train = df_train[~(df_train.unit.isin(units))]
-
-    else:
-        df_val = pd.DataFrame([], columns=df_train.columns)  # Empty
-
-    return df_train, df_val, df_test
-
-
-def _load_data_from_file(filepath, typ=np.float64, vars=["X_s", "X_v", "T", "A"]):
-    """Load data from source file into a dataframe.
-
-    Parameters
-    ----------
-    file : str
-        Source file.
-    vars : list
-        May contain 'X_s', 'X_v', 'T', 'A'
-        W: Scenario Descriptors (always included)
-        X_s: Measurements
-        X_v: Virtual sensors
-        T: Health Parameters
-        A: Auxiliary Data
-        Y: rul (always included)
-
-    Returns
-    -------
-    DataFrame
-        Data organized into a dataframe.
-    """
-
-    assert all(
-        [x in ["X_s", "X_v", "T", "A"] for x in vars]
-    ), "Wrong vars provided, choose a subset of ['X_s', 'X_v', 'T', 'A']"
-    assert any([x in filepath for x in ncmapss_files]), "Incorrect file name {}".format(
-        filepath
-    )
-
-    if ".h5" not in filepath:
-        filepath = filepath + ".h5"
-
-    with h5py.File(filepath, "r") as hdf:
-
-        dev = []
-        test = []
-        varnames = []
-
-        dev.append(np.array(hdf.get("W_dev")))
-        test.append(np.array(hdf.get("W_test")))
-        varnames.extend(hdf.get("W_var"))
-
-        if "X_s" in vars:
-            dev.append(np.array(hdf.get("X_s_dev")))
-            test.append(np.array(hdf.get("X_s_test")))
-            varnames.extend(hdf.get("X_s_var"))
-        if "X_v" in vars:
-            dev.append(np.array(hdf.get("X_v_dev")))
-            test.append(np.array(hdf.get("X_v_test")))
-            varnames.extend(hdf.get("X_v_var"))
-        if "T" in vars:
-            dev.append(np.array(hdf.get("T_dev")))
-            test.append(np.array(hdf.get("T_test")))
-            varnames.extend(hdf.get("T_var"))
-        if "A" in vars:
-            dev.append(np.array(hdf.get("A_dev")))
-            test.append(np.array(hdf.get("A_test")))
-            varnames.extend(hdf.get("A_var"))
-
-        # Add RUL
-        dev.append(np.array(hdf.get("Y_dev")))
-        test.append(np.array(hdf.get("Y_test")))
-
-    varnames = list(np.array(varnames, dtype="U20"))  # Strange string types
-    varnames = [str(x) for x in varnames]
-    varnames.append("rul")
-
-    dev = np.concatenate(dev, axis=1)
-    test = np.concatenate(test, axis=1)
-
-    assert (dev.shape[1] == test.shape[1]) & (
-        test.shape[1] == len(varnames)
-    ), "Dimension error in creating ncmapss. Dev {}, test {} names {}".format(
-        dev.shape, test.shape, len(varnames)
-    )
-
-    df_train = pd.DataFrame(data=dev, columns=varnames, dtype=typ)
-    df_test = pd.DataFrame(data=test, columns=varnames, dtype=typ)
-
-    return df_train, df_test
-
-
-def generate_lmdb(args, datasets=["train", "val", "test"]) -> None:
-    """Parquet files to lmdb files"""
-    lmdb_dir = Path(f"{args.out_path}/lmdb")
-    lmdb_dir.mkdir(exist_ok=True)
-    lmdb_dir_files = [x for x in lmdb_dir.iterdir()]
-    if len(lmdb_dir_files) > 0:
-        warnings.warn(
-            f"{lmdb_dir} is not empty. Generation will not overwrite"
-            " the previously generated .lmdb files. It will append data."
-        )
-    for ds in datasets:
-        filelist = list(Path(f"{args.out_path}/parquet").glob(f"{ds}*.parquet"))
-        print(f"Generating {ds} lmdb with {[x.as_posix() for x in filelist]} files...")
-        if filelist is not None:
-            feed_lmdb(Path(f"{lmdb_dir}/{ds}.lmdb"), filelist, args)
-
-
-class Line(NamedTuple):  # An N-CMAPSS Line
-    ds_id: int  # train, test, val
-    unit_id: int  # Which unit
-    win_id: int  # Window id
-    settings: np.ndarray  # W
-    data: np.ndarray  # X_s, X_v, T, A (not necessarily all of them)
-    rul: int  # Y
-
-
-def feed_lmdb(output_lmdb: Path, filelist: List[Path], args) -> None:
-    patterns: Dict[str, Callable[[Line], Union[bytes, np.ndarray]]] = {
-        "{}": (
-            lambda line: line.data.astype(np.float32) if args.bits == 32 else line.data
-        ),
-        "ds_id_{}": (lambda line: "{}".format(line.ds_id).encode()),
-        "unit_id_{}": (lambda line: "{}".format(line.unit_id).encode()),
-        "win_id_{}": (lambda line: "{}".format(line.win_id).encode()),
-        "settings_{}": (
-            lambda line: line.settings.astype(np.float32)
-            if args.bits == 32
-            else line.settings
-        ),
-        "rul_{}": (lambda line: "{}".format(line.rul).encode()),
-    }
-
-    args.settings = []  # args.settings = ncmapss_datanames['W']
-    args.features = []
-    args.features.extend(ncmapss_datanames["W"])  # We treat W as input data
-    for key in ncmapss_datanames:
-        if (key == "Y") or (key not in args.subdata):
-            continue
-        else:
-            args.features.extend(ncmapss_datanames[key])
-
-    return create_lmdb(
-        filename=output_lmdb,
-        iterator=process_files(filelist, args),
-        patterns=patterns,
-        aggs=[MinMaxAggregate(args)] if args.lmdb_min_max else [],
-        win_length=args.win_length,
-        n_features=len(args.features),
-        bits=args.bits,
-    )
-
-
-def process_files(filelist: List[Path], args) -> Iterator[Line]:
-    for filename in tqdm(filelist):
-        df = pd.read_parquet(filename)
-        if hasattr(args, "skip_obs"):
-            df = df[:: args.skip_obs]
-        args.subset = int(str(filename.stem).split("_")[-1][3])
-        yield from process_dataframe(df, args)
-        del df
-
-
-def process_dataframe(df: pd.DataFrame, args) -> Iterator[Line]:
-    win_length = (
-        args.win_length[args.subset]
-        if isinstance(args.win_length, dict)
-        else args.win_length
-    )
-    for unit_id, traj in tqdm(df.groupby("unit"), leave=False, position=1):
-        for i, sl in enumerate(
-            tqdm(
-                make_slice(traj.shape[0], win_length, args.win_step),
-                leave=False,
-                total=traj.shape[0] / args.win_step,
-                position=2,
-            )
-        ):
-
+        for i, sl in enumerate(pbar_win):
+            if i % 200:
+                pbar_win.set_description(f"Window {i}")
             yield Line(
-                ds_id=args.subset,
+                ds_id=ds_id,
                 unit_id=unit_id,
                 win_id=i,
-                settings=traj[args.settings].iloc[sl].unstack().values,
-                data=traj[args.features].iloc[sl].unstack().values,
+                data=traj[features].iloc[sl].unstack().values,
                 rul=traj["rul"].iloc[sl].iloc[-1],
             )
 
 
-class MinMaxAggregate:
-    def __init__(self, args):
-        self.args = args
-
-    def feed(self, line: Line, i: int) -> None:
-        n_features = len(self.args.features)
-        min_, max_ = (
-            line.data.reshape(n_features, -1).T,
-            line.data.reshape(n_features, -1).T,
-        )
-
-        if i == 0:
-            self.min_, self.max_ = min_.min(0), max_.max(0)
+def feed_lmdb(output_lmdb: Path, iterator, args) -> None:
+    patterns: Dict[str, Callable[[Line], Union[bytes, np.ndarray]]] = {
+        "{}": (
+            lambda line: line.data.astype(np.float32)
+            if args.bits == 32
+            else line.data
+        ),
+        "ds_id_{}": (lambda line: "{}".format(line.ds_id).encode()),
+        "unit_id_{}": (lambda line: "{}".format(line.unit_id).encode()),
+        "win_id_{}": (lambda line: "{}".format(line.win_id).encode()),
+        "rul_{}": (lambda line: "{}".format(line.rul).encode()),
+    }
+    features = []
+    features.extend(ncmapss_datanames["W"])  # We treat W as input data
+    for key in ncmapss_datanames:
+        if (key == "Y") or (key not in args.subdata):
+            continue
         else:
-            self.min_ = np.min([self.min_, min_.min(0)], axis=0)
-            self.max_ = np.max([self.max_, max_.max(0)], axis=0)
+            features.extend(ncmapss_datanames[key])
 
-    def get(self) -> Dict[str, Union[np.ndarray, bytes]]:
-        return {
-            "min_sample": self.min_.astype(
-                np.float32 if self.args.bits == 32 else np.float64
-            ),
-            "max_sample": self.max_.astype(
-                np.float32 if self.args.bits == 32 else np.float64
-            ),
-        }
+    return create_lmdb(
+        filename=output_lmdb,
+        iterator=iterator,
+        patterns=patterns,
+        aggs=[],
+        win_length=args.win_length,
+        n_features=len(features),
+        bits=args.bits,
+    )
+
+
+def preprocess_lmdb(args):
+    logging.info("Preprocessing lmdb files ...")
+    dm = NCMAPSSDataModule(args.out_path, batch_size=10000, all_dset=True)
+    train_ds, val_ds = dm.random_split(args.val_ratio)
+    scaler = StandardScalerTransform(
+        train_dataloader=dm.train_dataloader(), sample_idx=-1
+    )
+    for lmdb, ds in zip(
+        ["train_prep", "val_prep", "test_prep"],
+        [train_ds, val_ds, dm.datasets["test"]],
+    ):
+        path = Path(f"{args.out_path}/lmdb/{lmdb}.lmdb")
+        feed_lmdb(
+            path,
+            process_ds(ds, scaler),
+            args,
+        )
+    for lmdb in ["train_prep", "val_prep", "test_prep"]:
+        path = Path(f"{args.out_path}/lmdb/{lmdb}.lmdb")
+        new_path = Path(f"{args.out_path}/lmdb/{path.stem.split('_')[0]}.lmdb")
+        shutil.copytree(
+            path.as_posix(), new_path.as_posix(), dirs_exist_ok=True
+        )
+        shutil.rmtree(path.as_posix(), ignore_errors=True)
+
+
+def process_ds(ds: Dataset, scaler: StandardScalerTransform) -> Line:
+    for ds_id, unit_id, win_id, rul, sample in ds:
+        yield Line(
+            ds_id=ds_id,
+            unit_id=unit_id,
+            win_id=win_id,
+            data=scaler(sample),
+            rul=rul,
+        )

@@ -154,7 +154,7 @@ def addTestFlightInfo(df: pd.DataFrame, path: str = "data/ncmapss/"):
         where to find the dataset lmdbs to retrieve test set
 
     Returns : pd.DataFrame
-        df with a extra columns (ds_id, traj_id, win_id and engine_id)
+        df with a extra columns (ds_id, unit_id, win_id and engine_id)
 
     Raises
     -------
@@ -165,16 +165,16 @@ def addTestFlightInfo(df: pd.DataFrame, path: str = "data/ncmapss/"):
     loader = data.test_dataloader()
 
     ds_id = pd.Series(dtype="object")
-    traj_id = pd.Series(dtype="object")
+    unit_id = pd.Series(dtype="object")
     win_id = pd.Series(dtype="object")
 
-    for ds, traj, win, stgs, r, spl in loader:
+    for ds, traj, win, _, _ in loader:
         ds_id = pd.concat([ds_id, pd.Series(ds.detach().flatten())])
-        traj_id = pd.concat([traj_id, pd.Series(traj.detach().flatten())])
+        unit_id = pd.concat([unit_id, pd.Series(traj.detach().flatten())])
         win_id = pd.concat([win_id, pd.Series(win.detach().flatten())])
 
     added_info = (
-        pd.concat([ds_id, traj_id, win_id], axis=1)
+        pd.concat([ds_id, unit_id, win_id], axis=1)
         .rename(columns={0: "ds_id", 1: "unit_id", 2: "win_id"})
         .reset_index(drop=True)
     )
