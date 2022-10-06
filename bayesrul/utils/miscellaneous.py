@@ -41,12 +41,18 @@ def weights_init(m):
         torch.nn.init.kaiming_normal_(m.weight)
 
 
-def get_checkpoint(path: Union[Path, str], version=None) -> Union[str, None]:
+def get_checkpoint(
+    path: Union[Path, str], version: int = None
+) -> Union[str, None]:
     """Gets the checkpoint filename and path of a log directory"""
     try:
         path = os.path.join(os.getcwd(), path, "lightning_logs")
-        ls = sorted(os.listdir(path), reverse=True)
-        d = os.path.join(path, ls[-1], "checkpoints")
+        version_dir = (
+            sorted(os.listdir(path), reverse=True)[-1]
+            if version is None
+            else f"version_{version}"
+        )
+        d = os.path.join(path, version_dir, "checkpoints")
         if os.path.isdir(d):
             checkpoint_file = sorted(
                 glob.glob(os.path.join(d, "*.ckpt")),

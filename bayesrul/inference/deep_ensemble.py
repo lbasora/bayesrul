@@ -2,16 +2,12 @@ from pathlib import Path
 
 import pytorch_lightning as pl
 import torch
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
 import numpy as np
+import pandas as pd
+from bayesrul.inference.dnn import HeteroscedasticDNN
 from bayesrul.inference.inference import Inference
-from bayesrul.lightning_wrappers.frequentist import DeepEnsembleWrapper
-from bayesrul.utils.miscellaneous import (
-    Dotdict,
-    get_checkpoint,
-    numel,
-)
+from bayesrul.utils.miscellaneous import Dotdict
 from bayesrul.utils.post_process import ResultSaver
 
 
@@ -54,6 +50,7 @@ class DeepEnsemble(Inference):
         if hyperparams is not None:  # Overriding defaults with arguments
             for key in hyperparams.keys():
                 hyp[key] = hyperparams[key]
+        self.hyp = hyp
 
         # Merge dicts and make attributes accessible by .
         self.args = Dotdict({**(args.__dict__), **hyp})
@@ -65,61 +62,47 @@ class DeepEnsemble(Inference):
         directory = "studies" if studying else "frequentist"
         self.base_log_dir = Path(args.out_path, directory, args.model_name)
 
-        self.checkpoint_file = get_checkpoint(self.base_log_dir, version=None)
-
     def _define_model(self):
-        self.checkpoint_file = get_checkpoint(self.base_log_dir, version=None)
-        if self.checkpoint_file:
-            print("Loading model from checkpoint")
-            self.dnn = DeepEnsembleWrapper.load_from_checkpoint(
-                self.checkpoint_file, map_location=self.args.device  # type: ignore
+        self.models = [
+            HeteroscedasticDNN(
+                self.args, self.data, self.hyp, GPU=self.GPU, version=i
             )
-        else:
-            print(self.args)
-            self.dnn = DeepEnsembleWrapper(
-                self.data.win_length,  # type: ignore
-                self.data.n_features,  # type: ignore
-                self.n_models,
-                **self.args,
-            )
+            for i in range(self.n_models)
+        ]
 
     def fit(self, epochs, monitor=None, early_stop=0):
-        if not hasattr(self, "dnn"):
+        if not hasattr(self, "models"):
             self._define_model()
 
-        self.trainer = pl.Trainer(
-            default_root_dir=str(self.base_log_dir),
-            accelerator="gpu",
-            devices=[self.GPU],
-            max_epochs=epochs,
-            log_every_n_steps=20,
-            callbacks=[
-                ModelCheckpoint(monitor=monitor),
-                EarlyStopping(monitor=monitor, patience=early_stop),
-            ]
-            if early_stop
-            else None,
-        )
-
-        self.trainer.fit(self.dnn, self.data, ckpt_path=self.checkpoint_file)
-
-        return self.trainer.callback_metrics[monitor]
+        metrics = [
+            model.fit(epochs, monitor, early_stop) for model in self.models
+        ]
+        return np.asarray(metrics).mean()
 
     def test(self):
-        if not hasattr(self, "dnn"):
+        if not hasattr(self, "models"):
             self._define_model()
 
-        tester = pl.Trainer(
-            accelerator="gpu",
-            devices=[self.GPU],
-            log_every_n_steps=100,
-            max_epochs=-1,
-        )  # Silence warning
+        test_preds = dict()
+        test_preds["labels"] = None
+        test_preds["preds"] = []
+        test_preds["stds"] = []
+        for model in self.models:
+            model_test_preds = model.test()
+            if test_preds["labels"] is None:
+                test_preds["labels"] = model_test_preds["labels"]
+            test_preds["preds"].append(model_test_preds["preds"])
+            test_preds["stds"].append(model_test_preds["stds"])
 
-        tester.test(self.dnn, self.data, verbose=False)
-
+        loc = np.stack(test_preds["preds"])
+        test_preds["preds"] = loc.mean(0)
+        # Gaussian mixture formula : var = (scale**2+loc**2).mean(0) - loc.mean(0)**2)
+        loc, scale = test_preds["preds"], np.stack(test_preds["stds"])
+        test_preds["stds"] = np.sqrt(
+            (scale**2 + loc**2).mean(0) - test_preds["preds"] ** 2
+        )
         self.results = ResultSaver(self.base_log_dir)
-        self.results.save(self.dnn.test_preds)
+        self.results.save(test_preds)
 
     def epistemic_aleatoric_uncertainty(self, device=None):
         raise NotImplementedError(
@@ -127,7 +110,7 @@ class DeepEnsemble(Inference):
         )
 
     def num_params(self) -> int:
-        if not hasattr(self, "dnn"):
+        if not hasattr(self, "models"):
             self._define_model()
 
-        return np.sum([numel(x) for x in self.dnn.nets])
+        return np.sum([model.num_params() for model in self.models])

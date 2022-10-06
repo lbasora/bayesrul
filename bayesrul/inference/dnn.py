@@ -27,6 +27,7 @@ class HeteroscedasticDNN(Inference):
         hyperparams=None,
         GPU=1,
         studying=False,
+        version=None,  # for deep ensembles
     ) -> None:
         assert isinstance(
             GPU, int
@@ -55,9 +56,12 @@ class HeteroscedasticDNN(Inference):
 
         directory = "studies" if studying else "frequentist"
         self.base_log_dir = Path(args.out_path, directory, args.model_name)
+        self.version = version
 
-    def _define_model(self):
-        self.checkpoint_file = get_checkpoint(self.base_log_dir, version=None)
+    def _define_model(self, version=None):
+        self.checkpoint_file = get_checkpoint(
+            self.base_log_dir, version=version
+        )
         if self.checkpoint_file:
             self.dnn = DnnWrapper.load_from_checkpoint(
                 self.checkpoint_file, map_location=self.args.device
@@ -71,7 +75,7 @@ class HeteroscedasticDNN(Inference):
 
     def fit(self, epochs, monitor, early_stop=0):
         if not hasattr(self, "dnn"):
-            self._define_model()
+            self._define_model(self.version)
 
         self.trainer = pl.Trainer(
             default_root_dir=self.base_log_dir,
@@ -93,7 +97,7 @@ class HeteroscedasticDNN(Inference):
 
     def test(self):
         if not hasattr(self, "dnn"):
-            self._define_model()
+            self._define_model(self.version)
 
         tester = pl.Trainer(
             accelerator="gpu",
@@ -104,8 +108,12 @@ class HeteroscedasticDNN(Inference):
 
         tester.test(self.dnn, self.data, verbose=False)
 
-        self.results = ResultSaver(self.base_log_dir)
+        self.results = ResultSaver(
+            self.base_log_dir,
+            "" if self.version is None else f"results{self.version}.parquet",
+        )
         self.results.save(self.dnn.test_preds)
+        return self.dnn.test_preds
 
     def epistemic_aleatoric_uncertainty(self):
         raise RuntimeError("Heteroscedastic NN can not separate uncertainties.")
