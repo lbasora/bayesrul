@@ -1,0 +1,6 @@
+defaults:
+  - ncmapss
+out_path: data/ncmapss/test
+files:
+  - N-CMAPSS_DS01-005
+skip_obs: 1000

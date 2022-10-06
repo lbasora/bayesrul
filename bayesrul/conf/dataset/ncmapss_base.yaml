@@ -1,0 +1,72 @@
+data_path: "data/ncmapss/"
+out_path: "data/ncmapss/"
+val_ratio: 0.1
+files:
+  - N-CMAPSS_DS01-005
+  - N-CMAPSS_DS02-006
+  - N-CMAPSS_DS03-012
+  - N-CMAPSS_DS04
+  - N-CMAPSS_DS05
+  - N-CMAPSS_DS06
+  - N-CMAPSS_DS07
+  - N-CMAPSS_DS08a-009
+  - N-CMAPSS_DS08c-008
+  - N-CMAPSS_DS08d-010
+
+subdata:
+  - A
+  - T
+  - W
+  - X_s
+  - X_v
+
+features:
+  A: []
+  T:
+    - fan_eff_mod
+    - fan_flow_mod
+    - LPC_eff_mod
+    - LPC_flow_mod
+    - HPC_eff_mod
+    - HPC_flow_mod
+    - HPT_eff_mod
+    - HPT_flow_mod
+    - LPT_eff_mod
+    - LPT_flow_mod
+  W:
+    - alt
+    - Mach
+    - TRA
+    - T2
+  X_s:
+    - T24
+    - T30
+    - T48
+    - T50
+    - P15
+    - P2
+    - P21
+    - P24
+    - Ps30
+    - P40
+    - P50
+    - Nf
+    - Nc
+    - Wf
+  X_v:
+    - T40
+    - P30
+    - P45
+    - W21
+    - W22
+    - W25
+    - W31
+    - W32
+    - W48
+    - W50
+    - SmFan
+    - SmLPC
+    - SmHPC
+    - phi
+  Y:
+    - rul

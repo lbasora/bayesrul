@@ -14,70 +14,14 @@ from bayesrul.ncmapss.dataset import NCMAPSSDataModule
 
 from ..utils.lmdb_utils import StandardScalerTransform, create_lmdb, make_slice
 
-ncmapss_files = [
-    "N-CMAPSS_DS01-005",
-    "N-CMAPSS_DS02-006",
-    "N-CMAPSS_DS03-012",
-    "N-CMAPSS_DS04",
-    "N-CMAPSS_DS05",
-    "N-CMAPSS_DS06",
-    "N-CMAPSS_DS07",
-    "N-CMAPSS_DS08a-009",
-    "N-CMAPSS_DS08c-008",
-    "N-CMAPSS_DS08d-010",
-]
 
-ncmapss_data = ["X_s", "X_v", "T", "A"]
-
-ncmapss_datanames = {
-    "W": ["alt", "Mach", "TRA", "T2"],
-    "X_s": [
-        "T24",
-        "T30",
-        "T48",
-        "T50",
-        "P15",
-        "P2",
-        "P21",
-        "P24",
-        "Ps30",
-        "P40",
-        "P50",
-        "Nf",
-        "Nc",
-        "Wf",
-    ],
-    "X_v": [
-        "T40",
-        "P30",
-        "P45",
-        "W21",
-        "W22",
-        "W25",
-        "W31",
-        "W32",
-        "W48",
-        "W50",
-        "SmFan",
-        "SmLPC",
-        "SmHPC",
-        "phi",
-    ],
-    "T": [
-        "fan_eff_mod",
-        "fan_flow_mod",
-        "LPC_eff_mod",
-        "LPC_flow_mod",
-        "HPC_eff_mod",
-        "HPC_flow_mod",
-        "HPT_eff_mod",
-        "HPT_flow_mod",
-        "LPT_eff_mod",
-        "LPT_flow_mod",
-    ],
-    "A": [],  # ['Fc', 'unit', 'cycle', 'hs'] removed because not judged relevant
-    "Y": ["rul"],
-}
+def get_features(args):
+    features = [
+        args.features[key]
+        for key in args.features.keys()
+        if (key != "Y") and (key in args.subdata)
+    ]
+    return [f for fl in features for f in fl if f]
 
 
 def generate_lmdb(args) -> None:
@@ -90,32 +34,33 @@ def generate_lmdb(args) -> None:
             f"{lmdb_dir} is not empty. Generation will not overwrite"
             " the previously generated .lmdb files. It will append data."
         )
-    features = []
-    features.extend(ncmapss_datanames["W"])  # We treat W as input data
-    for key in ncmapss_datanames:
-        if (key == "Y") or (key not in args.subdata):
-            continue
-        else:
-            features.extend(ncmapss_datanames[key])
+    features = get_features(args)
     for ds in ["train", "test"]:
         filelist = list(
             Path(args.data_path, filename) for filename in args.files
         )
-        logging.info(
-            f"Generating {ds} lmdb with {[x.as_posix() for x in filelist]} files..."
-        )
         if filelist is not None:
+            logging.info(
+                f"Generating {ds} lmdb with {[x.stem for x in filelist]} files..."
+            )
             iterator = process_files(
                 filelist,
                 "dev" if ds == "train" else "test",
                 args.bits,
                 args.win_length,
                 args.win_step,
+                args.files,
                 features,
                 args.subdata,
                 args.skip_obs,
             )
-            feed_lmdb(Path(f"{lmdb_dir}/{ds}.lmdb"), iterator, args)
+            feed_lmdb(
+                Path(f"{lmdb_dir}/{ds}.lmdb"),
+                iterator,
+                args.bits,
+                args.win_length,
+                len(features),
+            )
 
 
 class Line(NamedTuple):  # An N-CMAPSS Line
@@ -132,16 +77,18 @@ def process_files(
     bits: int,
     win_length: int,
     win_step: int,
+    files: List[str],
     features: List[str],
     subdata: List[str],
     skip_obs: Optional[int] = None,
 ) -> Iterator[Line]:
 
     for filename in tqdm(filelist):
-        df = load_data_from_file(
+        df = read_hdf5(
             filename,
             dev_test,
             np.float32 if bits == 32 else np.float64,
+            files,
             vars=subdata,
         )
         if "A" in subdata:
@@ -153,8 +100,12 @@ def process_files(
         del df
 
 
-def load_data_from_file(
-    filepath, dev_test_suffix, dtype=np.float64, vars=["X_s", "X_v", "T", "A"]
+def read_hdf5(
+    filepath: Path,
+    dev_test_suffix: str,
+    dtype: Union[np.float32, np.float64],
+    files: List[str],
+    vars=["W", "X_s", "X_v", "T", "A"],
 ):
     """Load data from source file into a dataframe.
 
@@ -178,11 +129,9 @@ def load_data_from_file(
     """
 
     assert all(
-        [x in ["X_s", "X_v", "T", "A"] for x in vars]
-    ), "Wrong vars provided, choose a subset of ['X_s', 'X_v', 'T', 'A']"
-    assert filepath.name in ncmapss_files, "Incorrect file name {}".format(
-        filepath
-    )
+        [x in ["W", "X_s", "X_v", "T", "A"] for x in vars]
+    ), "Wrong vars provided, choose a subset of ['W', 'X_s', 'X_v', 'T', 'A']"
+    assert filepath.name in files, "Incorrect file name {}".format(filepath)
 
     if ".h5" not in filepath.name:
         filepath = filepath.with_suffix(".h5")
@@ -292,11 +241,17 @@ def process_dataframe(
             )
 
 
-def feed_lmdb(output_lmdb: Path, iterator, args) -> None:
+def feed_lmdb(
+    output_lmdb: Path,
+    iterator: Iterator[Line],
+    bits: int,
+    win_length: int,
+    n_features: int,
+) -> None:
     patterns: Dict[str, Callable[[Line], Union[bytes, np.ndarray]]] = {
         "{}": (
             lambda line: line.data.astype(np.float32)
-            if args.bits == 32
+            if bits == 32
             else line.data
         ),
         "ds_id_{}": (lambda line: "{}".format(line.ds_id).encode()),
@@ -304,22 +259,14 @@ def feed_lmdb(output_lmdb: Path, iterator, args) -> None:
         "win_id_{}": (lambda line: "{}".format(line.win_id).encode()),
         "rul_{}": (lambda line: "{}".format(line.rul).encode()),
     }
-    features = []
-    features.extend(ncmapss_datanames["W"])  # We treat W as input data
-    for key in ncmapss_datanames:
-        if (key == "Y") or (key not in args.subdata):
-            continue
-        else:
-            features.extend(ncmapss_datanames[key])
-
     return create_lmdb(
         filename=output_lmdb,
         iterator=iterator,
         patterns=patterns,
         aggs=[],
-        win_length=args.win_length,
-        n_features=len(features),
-        bits=args.bits,
+        win_length=win_length,
+        n_features=n_features,
+        bits=bits,
     )
 
 
@@ -338,7 +285,9 @@ def preprocess_lmdb(args):
         feed_lmdb(
             path,
             process_ds(ds, scaler),
-            args,
+            args.bits,
+            args.win_length,
+            len(get_features(args)),
         )
     for lmdb in ["train_prep", "val_prep", "test_prep"]:
         path = Path(f"{args.out_path}/lmdb/{lmdb}.lmdb")
@@ -349,7 +298,7 @@ def preprocess_lmdb(args):
         shutil.rmtree(path.as_posix(), ignore_errors=True)
 
 
-def process_ds(ds: Dataset, scaler: StandardScalerTransform) -> Line:
+def process_ds(ds: Dataset, scaler: StandardScalerTransform) -> Iterator[Line]:
     for ds_id, unit_id, win_id, rul, sample in ds:
         yield Line(
             ds_id=ds_id,

@@ -1,8 +1,0 @@
-defaults:
-  - _self_
-  - inference: nn
-  - ds: ncmapss
-  - training
-hydra:
-  job:
-    chdir : True
