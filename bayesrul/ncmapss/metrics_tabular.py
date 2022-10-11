@@ -116,7 +116,11 @@ def get_all_metrics(names: List[str]) -> pd.DataFrame:
 
             sharp = sharpness(std).cpu().item()
             rmsce = rms_calibration_error(y_pred, std, y_true).cpu().item()
-            nll = gaussian_nll_loss(y_pred, y_true, std).cpu().item()
+            nll = (
+                gaussian_nll_loss(y_pred, y_true, torch.square(std))
+                .cpu()
+                .item()
+            )
 
             # nasa = nasa_scoring_function(y_true, y_pred)
             rmse = torch.sqrt(((y_true - y_pred) ** 2).mean()).cpu().item()

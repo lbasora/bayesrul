@@ -291,24 +291,24 @@ class VIBnnWrapper(BnnWrapper):
 
     def test_step(self, batch, batch_idx):
         (x, y) = batch[0], batch[1].squeeze()
-        with self.fit_ctxt():
-            output = self.bnn.predict(x, num_predictions=10)
-            if isinstance(output, tuple):
-                loc, scale = output
-            else:
-                output = output.squeeze()
-                loc, scale = output[:, 0], output[:, 1]
+        output = self.bnn.predict(x, num_predictions=10, aggregate=True)
+        if isinstance(output, tuple):
+            loc, scale = output
+        else:
+            loc, scale = output[:, 0], output[:, 1]
 
+        nll = F.gaussian_nll_loss(loc, y, torch.square(scale))
         mse = F.mse_loss(y.squeeze(), loc)
         rmsce = rms_calibration_error(loc, scale, y.squeeze())
         sharp = sharpness(scale)
+        self.log("nll/test", nll)
         self.log("mse/test", mse)
         self.log("rmsce/test", rmsce)
         self.log("sharp/test", sharp)
 
         try:
             return {
-                "loss": mse,
+                "loss": nll,
                 "label": batch[1],
                 "pred": loc.squeeze(),
                 "std": scale,
@@ -325,17 +325,13 @@ class VIBnnWrapper(BnnWrapper):
             self.bnn_no_obs, self.bnn.guide, self.optimizer, self.loss
         )
 
-        with self.fit_ctxt():
-            elbo = self.svi.evaluate_loss(x, y.unsqueeze(-1))
-            # Aggregate = False if num_prediction = 1, else nans in sd
-            output = self.bnn.predict(x, num_predictions=1, aggregate=False)
+        elbo = self.svi.evaluate_loss(x, y.unsqueeze(-1))
+        # Aggregate = False if num_prediction = 1, else nans in sd
+        output = self.bnn.predict(x, num_predictions=1, aggregate=False)
+        output = output.squeeze()
+        loc, scale = output[:, 0], output[:, 1]
 
-            if isinstance(output, tuple):
-                loc, scale = output
-            else:
-                output = output.squeeze()
-                loc, scale = output[:, 0], output[:, 1]
-            kl = self.svi_no_obs.evaluate_loss(x)
+        kl = self.svi_no_obs.evaluate_loss(x)
 
         mse = F.mse_loss(y.squeeze(), loc)
         rmsce = rms_calibration_error(loc, scale, y.squeeze())
@@ -364,23 +360,20 @@ class VIBnnWrapper(BnnWrapper):
             elbo = self.svi.step(x, y.unsqueeze(-1))
             # Aggregate = False if num_prediction = 1, else nans in sd
             output = self.bnn.predict(x, num_predictions=1, aggregate=False)
-            if isinstance(output, tuple):  # Homoscedastic
-                loc, scale = output
-            else:  # Heteroscedastic
-                output = output.squeeze()
-                loc, scale = output[:, 0], output[:, 1]
+            output = output.squeeze()
+            loc, scale = output[:, 0], output[:, 1]
             kl = self.svi_no_obs.evaluate_loss(x)
         self.trainer.fit_loop.epoch_loop.batch_loop.manual_loop.optim_step_progress.increment_completed()
 
         mse = F.mse_loss(y.squeeze(), loc.squeeze()).item()
         rmsce = rms_calibration_error(loc, scale, y.squeeze())
         sharp = sharpness(scale)
-        self.log("mse/train", mse)
-        self.log("elbo/train", elbo)
-        self.log("kl/train", kl)
-        self.log("likelihood/train", elbo - kl)
-        self.log("rmsce/train", rmsce)
-        self.log("sharp/train", sharp)
+        self.log("mse/train", mse, on_step=False, on_epoch=True)
+        self.log("elbo/train", elbo, on_step=False, on_epoch=True)
+        self.log("kl/train", kl, on_step=False, on_epoch=True)
+        self.log("likelihood/train", elbo - kl, on_step=False, on_epoch=True)
+        self.log("rmsce/train", rmsce, on_step=False, on_epoch=True)
+        self.log("sharp/train", sharp, on_step=False, on_epoch=True)
 
 
 class MCMCBnnWrapper(BnnWrapper):

@@ -4,10 +4,8 @@ import pytorch_lightning as pl
 import torch
 
 import numpy as np
-import pandas as pd
 from bayesrul.inference.dnn import HeteroscedasticDNN
 from bayesrul.inference.inference import Inference
-from bayesrul.utils.miscellaneous import Dotdict
 from bayesrul.utils.post_process import ResultSaver
 
 
@@ -52,12 +50,7 @@ class DeepEnsemble(Inference):
                 hyp[key] = hyperparams[key]
         self.hyp = hyp
 
-        # Merge dicts and make attributes accessible by .
-        self.args = Dotdict({**(args.__dict__), **hyp})
-        try:
-            del self.args["n_models"]
-        except KeyError:
-            pass
+        self.args = args
 
         directory = "studies" if studying else "frequentist"
         self.base_log_dir = Path(args.out_path, directory, args.model_name)

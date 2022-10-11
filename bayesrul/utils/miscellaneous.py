@@ -48,7 +48,7 @@ def get_checkpoint(
     try:
         path = os.path.join(os.getcwd(), path, "lightning_logs")
         version_dir = (
-            sorted(os.listdir(path), reverse=True)[-1]
+            sorted(glob.glob(path + "/version_*"), reverse=True)[-1]
             if version is None
             else f"version_{version}"
         )

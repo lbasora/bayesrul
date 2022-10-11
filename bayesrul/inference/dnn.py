@@ -100,6 +100,7 @@ class HeteroscedasticDNN(Inference):
             self._define_model(self.version)
 
         tester = pl.Trainer(
+            default_root_dir=self.base_log_dir,
             accelerator="gpu",
             devices=[self.GPU],
             log_every_n_steps=100,
@@ -110,7 +111,7 @@ class HeteroscedasticDNN(Inference):
 
         self.results = ResultSaver(
             self.base_log_dir,
-            "" if self.version is None else f"results{self.version}.parquet",
+            None if self.version is None else f"results{self.version}.parquet",
         )
         self.results.save(self.dnn.test_preds)
         return self.dnn.test_preds

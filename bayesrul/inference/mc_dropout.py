@@ -114,6 +114,7 @@ class MCDropout(Inference):
         enable_dropout(self.dnn)
 
         tester = pl.Trainer(
+            default_root_dir=self.base_log_dir,
             accelerator="gpu",
             devices=[self.GPU],
             log_every_n_steps=100,

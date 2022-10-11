@@ -1,17 +1,17 @@
 # type: ignore
+import logging
 from pathlib import Path
-from tqdm import tqdm
-
-import torch
 
 import pytorch_lightning as pl
+import torch
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from tqdm import tqdm
 
 from bayesrul.inference.inference import Inference
-from bayesrul.lightning_wrappers.frequentist import DnnPretrainWrapper
 from bayesrul.lightning_wrappers.bayesian import VIBnnWrapper
-from bayesrul.utils.miscellaneous import get_checkpoint, Dotdict
+from bayesrul.lightning_wrappers.frequentist import DnnPretrainWrapper
+from bayesrul.utils.miscellaneous import Dotdict, get_checkpoint
 from bayesrul.utils.post_process import ResultSaver
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
 DEBUG = True
 
@@ -106,7 +106,7 @@ class VI_BNN(Inference):
 
         self.args.device = torch.device(f"cuda:{self.GPU}")
         if checkpoint_file:
-            print("Loading already trained model")
+            print(f"Loading already trained model from {checkpoint_file}")
             additional_kwargs = {"pretrain": 0, "pretrain_file": None}
             self.bnn = VIBnnWrapper.load_from_checkpoint(
                 checkpoint_file,
@@ -158,6 +158,7 @@ class VI_BNN(Inference):
             self._define_model()
 
         tester = pl.Trainer(
+            default_root_dir=self.base_log_dir,
             accelerator="gpu",
             devices=[self.GPU],
             log_every_n_steps=100,

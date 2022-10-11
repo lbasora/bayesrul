@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 from torch.functional import F
 
-import numpy as np
 from bayesrul.models.conv import Conv
 from bayesrul.models.inception import BigCeption, InceptionModel
 from bayesrul.models.linear import Linear
@@ -127,7 +126,7 @@ class DnnWrapper(pl.LightningModule):
         else:
             loss = self.criterion(y_hat, y)
 
-        self.log(f"{self.loss}/{phase}", loss)
+        self.log(f"{self.loss}/{phase}", loss, on_step=False, on_epoch=True)
         if return_pred:
             if output.shape[1] == 2:
                 return loss, y_hat, scale
@@ -144,9 +143,9 @@ class DnnWrapper(pl.LightningModule):
             mse = F.mse_loss(loc, batch[1])
             rmsce = rms_calibration_error(loc, scale, batch[1])
             sharp = sharpness(scale)
-            self.log("mse/train", mse)
-            self.log("rmsce/train", rmsce)
-            self.log("sharp/train", sharp)
+            self.log("mse/train", mse, on_step=False, on_epoch=True)
+            self.log("rmsce/train", rmsce, on_step=False, on_epoch=True)
+            self.log("sharp/train", sharp, on_step=False, on_epoch=True)
         else:
             loss = self._compute_loss(batch, "train", return_pred=False)
         return loss
@@ -217,7 +216,7 @@ class DnnWrapper(pl.LightningModule):
             preds = []
             losses = []
             scales = []
-            for i in range(100):
+            for i in range(10):
                 if self.out_size == 2:
                     loss, loc, scale = self._compute_loss(
                         batch, "test", return_pred=True
@@ -234,7 +233,10 @@ class DnnWrapper(pl.LightningModule):
             preds = torch.stack(preds)
             if self.out_size == 2:
                 scales = torch.stack(scales)
-                scale = scales.mean(axis=0)
+                # scale = scales.mean(axis=0) NO!!!!
+                scale = (
+                    scales.pow(2).mean(0).add(preds.var(0)).sqrt()
+                )  # Like in TyXe
             else:
                 scale = preds.std(axis=0)
             preds = preds.mean(axis=0)
@@ -266,7 +268,6 @@ class DnnWrapper(pl.LightningModule):
                 labels = torch.cat([labels, output["label"].detach()])
                 if (self.dropout > 0) | (self.loss == "gaussian_nll"):
                     stds = torch.cat([stds, output["std"].detach()])
-
         self.test_preds["preds"] = preds.cpu().numpy()
         self.test_preds["labels"] = labels.cpu().numpy()
 
@@ -275,9 +276,10 @@ class DnnWrapper(pl.LightningModule):
 
         if (self.dropout > 0) | (self.loss == "gaussian_nll"):
             self.test_preds["stds"] = stds.cpu().numpy()
-
+            nll = F.gaussian_nll_loss(preds, labels, torch.square(stds))
             rmsce = rms_calibration_error(preds, stds, labels)
             sharp = sharpness(stds)
+            self.log("nll/test", nll)
             self.log("rmsce/test", rmsce)
             self.log("sharp/test", sharp)
 

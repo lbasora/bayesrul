@@ -66,15 +66,15 @@ if __name__ == "__main__":
         type=int,
         default=0,
         metavar="EARLY_STOP",
-        required=True,
+        required=False,
         help="Early stopping patience (default:0 early stooping disabled",
     )
     parser.add_argument(
         "--epochs",
         type=int,
-        default=None,
+        default=1,
         metavar="EPOCHS",
-        required=True,
+        required=False,
         help="Number of epochs",
     )
     parser.add_argument(
@@ -90,8 +90,14 @@ if __name__ == "__main__":
         type=int,
         default=1,
         metavar="NUM_RUNS",
-        required=True,
+        required=False,
         help="Number of runs (default: 1)",
+    )
+    parser.add_argument(
+        "--test",
+        action="store_true",
+        default=False,
+        help="Just run the test phase (default: False)",
     )
 
     args = parser.parse_args()
@@ -119,7 +125,7 @@ if __name__ == "__main__":
             print(f"--------------- {args.model_name} -------------------")
 
         if isbayesian(model):
-            hyp["pretrain"] = 5
+            hyp["pretrain"] = 5 if not args.test else 0
             module = VI_BNN(args, data, hyp, GPU=args.GPU)
         else:
             if model == "MC_DROPOUT":
@@ -138,10 +144,13 @@ if __name__ == "__main__":
                     f"Wrong model {model}. Available : MFVI, "
                     "RADIAL, LOWRANK, MC-DROPOUT, DEEP-ENSEMBLE, HETERO-NN"
                 )
-
-        module.fit(args.epochs, monitor=monitor, early_stop=args.early_stop)
+        if not args.test:
+            module.fit(args.epochs, monitor=monitor, early_stop=args.early_stop)
         module.test()
-        try:
-            module.epistemic_aleatoric_uncertainty(device=torch.device("cpu"))
-        except Exception:
-            pass
+        if not args.test:
+            try:
+                module.epistemic_aleatoric_uncertainty(
+                    device=torch.device("cpu")
+                )
+            except Exception:
+                pass
