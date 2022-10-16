@@ -1,0 +1,5 @@
+defaults:
+  - bnn
+
+fit_context: flipout
+guide: normal

@@ -1,0 +1,5 @@
+defaults:
+  - hnn
+
+mc_samples_train: 1
+mc_samples_eval: 10

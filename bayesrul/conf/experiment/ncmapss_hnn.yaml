@@ -1,0 +1,29 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /datamodule: ncmapss
+  - override /model: hnn
+  - override /callbacks: default
+  - override /trainer: gpu
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["ncmapss", "frequentist", "hnn"]
+
+seed: 12345
+
+trainer:
+  min_epochs: 1
+  max_epochs: 1
+
+model:
+  optimizer:
+    lr: 0.0005
+    weight_decay: 0.001
+
+datamodule:
+  batch_size: 1000

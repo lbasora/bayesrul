@@ -33,11 +33,19 @@ class NCMAPSSDataModule(pl.LightningDataModule):
     Lightning loaders. This is the way to access generated LMDBs
     """
 
-    def __init__(self, data_path, batch_size, all_dset=False, num_workers=12):
+    def __init__(
+        self,
+        data_path,
+        batch_size,
+        all_dset=False,
+        num_workers=12,
+        pin_memory=True,
+    ):
         super().__init__()
         self.data_path = data_path
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.pin_memory = pin_memory
         self.all_dset = all_dset
 
         ds_list = ["train", "test"]
@@ -82,7 +90,7 @@ class NCMAPSSDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=True,
             num_workers=self.num_workers,
-            pin_memory=True,
+            pin_memory=self.pin_memory,
         )
 
     def val_dataloader(self) -> DataLoader:
@@ -91,7 +99,7 @@ class NCMAPSSDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
-            pin_memory=True,
+            pin_memory=self.pin_memory,
         )
 
     def test_dataloader(self) -> DataLoader:
@@ -100,5 +108,5 @@ class NCMAPSSDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,  # Important. do NOT shuffle or results will be false
             num_workers=self.num_workers,
-            pin_memory=True,
+            pin_memory=self.pin_memory,
         )

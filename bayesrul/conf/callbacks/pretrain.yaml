@@ -1,0 +1,12 @@
+defaults:
+  - model_checkpoint
+  - rich_progress_bar
+  - _self_
+
+model_checkpoint:
+  dirpath: ${hydra:runtime.subdir}
+  filename: "pretrained"
+  monitor: "mse/val"
+  mode: "min"
+  save_last: False
+  auto_insert_metric_name: False

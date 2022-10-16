@@ -1,0 +1,39 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /datamodule: ncmapss
+  - override /model: bnn_lrt
+  - override /callbacks: default
+  - override /trainer: gpu
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["ncmapss", "bayesian", "lrt"]
+
+seed: 12345
+
+trainer:
+  min_epochs: 1
+  max_epochs: 1
+
+model:
+  optimizer:
+    _args_:
+      - { lr: 0.0001, betas: [0.95, 0.999], clip_norm: 15 }
+  prior_scale: 0.08
+  q_scale: 0.0004
+  pretrain: True
+
+datamodule:
+  batch_size: 1000
+
+callbacks:
+  model_checkpoint:
+    monitor: elbo/val
+
+  early_stopping:
+    monitor: elbo/val

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "bayesrul"
-version = "0.2.0"
+version = "0.3.0"
 description = ""
 authors = ["Arthur Viens <arthviens@gmail.com>, Luis Basora <luis.basora@yahoo.fr>"]
 
@@ -21,8 +21,13 @@ pyarrow = "^8.0.0"
 jupyterlab = "^3.4.2"
 ipywidgets = "^7.7.0"
 statsmodels = "^0.13.2"
-hydra-core = "^1.2.0"
 uncertainty-toolbox = "^0.1.0"
+hydra-core = "^1.2.0"
+hydra-colorlog= "^1.2.0"
+hydra-optuna-sweeper= "^1.2.0"
+rich="^12.6.0"
+pyrootutils="^1.0.4"
+#wandb = "^0.13.3"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
@@ -38,7 +43,7 @@ black = ">=21.6"
 nb-black = "^1.0.7"
 flake8 = "^3.9.2"
 mypy = ">=0.950"
-#wandb = "^0.13.3"
+
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -71,7 +76,7 @@ platform = "posix"
 color_output = true
 pretty = true
 show_column_numbers = true
-strict = false
+strict = true
 
 # probably redundant, but useful when switching strict to false
 check_untyped_defs = true

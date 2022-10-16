@@ -1,0 +1,5 @@
+net:
+  _target_: bayesrul.models.inception.Inception
+  win_length: ???
+  n_features: ???
+  activation: relu

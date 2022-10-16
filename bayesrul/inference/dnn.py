@@ -6,7 +6,7 @@ import torch
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
 from bayesrul.inference.inference import Inference
-from bayesrul.lightning_wrappers.frequentist import DnnWrapper
+from bayesrul.lightning_wrappers.frequentist import HNN
 from bayesrul.utils.miscellaneous import (
     Dotdict,
     get_checkpoint,
@@ -63,11 +63,11 @@ class HeteroscedasticDNN(Inference):
             self.base_log_dir, version=version
         )
         if self.checkpoint_file:
-            self.dnn = DnnWrapper.load_from_checkpoint(
+            self.dnn = HNN.load_from_checkpoint(
                 self.checkpoint_file, map_location=self.args.device
             )
         else:
-            self.dnn = DnnWrapper(
+            self.dnn = HNN(
                 self.data.win_length,
                 self.data.n_features,
                 **self.args,

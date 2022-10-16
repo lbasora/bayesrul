@@ -7,7 +7,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from tqdm import tqdm
 
 from bayesrul.inference.inference import Inference
-from bayesrul.lightning_wrappers.frequentist import DnnWrapper
+from bayesrul.lightning_wrappers.frequentist import HNN
 from bayesrul.utils.miscellaneous import (
     Dotdict,
     enable_dropout,
@@ -74,9 +74,9 @@ class MCDropout(Inference):
         self.checkpoint_file = get_checkpoint(self.base_log_dir, version=None)
         if self.checkpoint_file:
             print(f"Loading model from checkpoint into {self.args.device}")
-            self.dnn = DnnWrapper.load_from_checkpoint(self.checkpoint_file)
+            self.dnn = HNN.load_from_checkpoint(self.checkpoint_file)
         else:
-            self.dnn = DnnWrapper(
+            self.dnn = HNN(
                 self.data.win_length,
                 self.data.n_features,
                 **self.args,

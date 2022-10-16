@@ -1,0 +1,4 @@
+defaults:
+  - nn
+
+_target_: bayesrul.lightning_wrappers.frequentist.HNN

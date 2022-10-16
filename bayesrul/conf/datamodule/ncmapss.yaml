@@ -1,0 +1,6 @@
+_target_: bayesrul.ncmapss.dataset.NCMAPSSDataModule
+data_path: ${paths.data_dir}/ncmapss/
+batch_size: 1000
+all_dset: False
+num_workers: 12
+pin_memory: True

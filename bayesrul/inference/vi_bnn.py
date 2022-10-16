@@ -8,8 +8,8 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from tqdm import tqdm
 
 from bayesrul.inference.inference import Inference
-from bayesrul.lightning_wrappers.bayesian import VIBnnWrapper
-from bayesrul.lightning_wrappers.frequentist import DnnPretrainWrapper
+from bayesrul.lightning_wrappers.bayesian import BNN
+from bayesrul.lightning_wrappers.frequentist import NN
 from bayesrul.utils.miscellaneous import Dotdict, get_checkpoint
 from bayesrul.utils.post_process import ResultSaver
 
@@ -78,7 +78,7 @@ class VI_BNN(Inference):
 
         if self.args.pretrain > 0 and (not checkpoint_file):
 
-            pre_net = DnnPretrainWrapper(
+            pre_net = NN(
                 self.data.win_length,
                 self.data.n_features,
                 archi=self.args.archi,
@@ -108,13 +108,13 @@ class VI_BNN(Inference):
         if checkpoint_file:
             print(f"Loading already trained model from {checkpoint_file}")
             additional_kwargs = {"pretrain": 0, "pretrain_file": None}
-            self.bnn = VIBnnWrapper.load_from_checkpoint(
+            self.bnn = BNN.load_from_checkpoint(
                 checkpoint_file,
                 map_location=self.args.device,
                 **additional_kwargs,
             )
         else:
-            self.bnn = VIBnnWrapper(
+            self.bnn = BNN(
                 self.data.win_length,
                 self.data.n_features,
                 self.data.train_size,

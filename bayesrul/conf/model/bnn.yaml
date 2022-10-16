@@ -1,0 +1,20 @@
+defaults:
+  - inception
+
+_target_: bayesrul.lightning_wrappers.bayesian.BNN
+
+optimizer:
+  _target_: pyro.optim.ClippedAdam
+  _partial_: False
+  _args_:
+    - { lr: 0.0001, betas: [0.95, 0.999], clip_norm: 15 }
+
+pretrain: False
+mc_samples_train: 1
+mc_samples_eval: 10
+dataset_size: ???
+fit_context: null
+prior_loc: 0
+prior_scale: 1
+guide: ???
+q_scale: 1

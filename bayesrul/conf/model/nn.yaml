@@ -1,0 +1,10 @@
+defaults:
+  - inception
+
+_target_: bayesrul.lightning_wrappers.frequentist.NN
+
+optimizer:
+  _target_: torch.optim.Adam
+  _partial_: true
+  lr: 0.001
+  weight_decay: 0.001
