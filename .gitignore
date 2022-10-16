@@ -11,8 +11,11 @@ notebooks/*.pt
 notebooks/*test*
 bayesrul/dependencies/*
 *.svg
-outputs/*
+logs/*
+paper/*
 .env
+launch*.share
+bayesrul.code-workspace
 
 # From https://github.com/github/gitignore/blob/main/Python.gitignore
 # Byte-compiled / optimized / DLL files
