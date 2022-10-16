@@ -1,7 +1,8 @@
 # Bayesrul
 
+TODO
 
-## Setup 
+<!-- ## Setup 
 
 Clone the repository
 ```
@@ -26,7 +27,7 @@ It will create the necessary parquet and lmdb files used later on. Parquet files
 You now should have `data/ncmapss/lmdb` directory, with all that is needed inside.
 
 
-<!-- ## Train a model
+## Train a model
 
 You can now launch a training (for example a BNN) 
 ```
@@ -57,5 +58,5 @@ In a JSON you can save the best parameter the search tried in the directory and 
 
 With such adictionary of parameters, it is possible to launch a training with these best found parameters. It will read the file and initialize a model accordingly before training.
 ```
-poetry run python -m bayesrul.ncmapss.train_best_models --model LRT --GPU 0 -->
-```
+poetry run python -m bayesrul.ncmapss.train_best_models --model LRT --GPU 0
+``` -->
