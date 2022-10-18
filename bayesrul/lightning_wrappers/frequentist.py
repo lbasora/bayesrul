@@ -21,9 +21,10 @@ class HNN(pl.LightningModule):
         optimizer: torch.optim.Optimizer,
         mc_samples_train: int,
         mc_samples_eval: int,
+        p_dropout: int,
     ):
         super().__init__()
-        self.save_hyperparameters(logger=True, ignore=["net"])
+        self.save_hyperparameters(logger=False, ignore=["net"])
         self.net = net
         self.test_preds = {
             "preds": [],

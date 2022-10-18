@@ -39,7 +39,7 @@ class BNN(pl.LightningModule):
         q_scale: float,
     ):
         super().__init__()
-        self.save_hyperparameters(logger=True, ignore=["net"])
+        self.save_hyperparameters(logger=False, ignore=["net"])
         self.net = net
 
     def define_bnn(self) -> None:

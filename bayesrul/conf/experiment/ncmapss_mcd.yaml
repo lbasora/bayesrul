@@ -5,15 +5,14 @@
 
 defaults:
   - override /datamodule: ncmapss
-  - override /model: nn
-  - override /callbacks: pretrain
+  - override /model: mcd
+  - override /callbacks: default
   - override /trainer: gpu
-  - override /hydra: default
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
-tags: ["ncmapss", "pretrain"]
+tags: ["ncmapss", "frequentist", "mcd"]
 
 seed: 12345
 
@@ -23,14 +22,9 @@ trainer:
 
 model:
   optimizer:
-    lr: 0.0005
+    lr: 0.001
     weight_decay: 0.001
+  p_dropout: 0.25
 
 datamodule:
-  batch_size: 10000
-
-hydra:
-  sweep:
-    subdir: pretrained
-
-logger: null
+  batch_size: 1000

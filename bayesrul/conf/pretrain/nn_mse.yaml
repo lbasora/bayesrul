@@ -1,0 +1,14 @@
+# @package _global_
+defaults:
+  - /model: nn
+  - /callbacks: pretrain
+  - /trainer: gpu
+  - /logger: null
+
+tags: ["pretrain"]
+
+ckpt_path: null
+
+trainer:
+  min_epochs: 1
+  max_epochs: 1

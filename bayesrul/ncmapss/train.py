@@ -1,8 +1,5 @@
 from pathlib import Path
-from pickletools import optimize
-import pyro
 import pyrootutils
-import torch
 from bayesrul.lightning_wrappers.frequentist import NN
 
 from bayesrul.utils.post_process import ResultSaver
@@ -77,14 +74,7 @@ def train(cfg: DictConfig):
     if cfg.get("train"):
         log.info("Starting training!")
         if cfg.model.get("pretrain"):
-            ckpt_path = Path(
-                f"{cfg.paths.output_dir}/../pretrained/checkpoints/pretrained.ckpt"
-            ).resolve()
-            log.info(f"Restoring pretrained net from: {ckpt_path}")
-            model.net = NN.load_from_checkpoint(
-                ckpt_path,
-                net=model.net,
-            ).net
+            model.net = load_pretrained_net(cfg, model, datamodule)
         elif cfg.get("ckpt_path"):
             model = load_from_checkpoint(cfg, model, cfg.get("ckpt_path"))
         trainer.fit(
@@ -131,11 +121,36 @@ def load_from_checkpoint(cfg, model, ckpt_path):
     return model
 
 
+def load_pretrained_net(cfg, model, datamodule):
+    if cfg.pretrain.ckpt_path:
+        ckpt_path = cfg.pretrain.ckpt_path
+        log.info(f"Restoring pretrained net from: {ckpt_path}")
+        return NN.load_from_checkpoint(
+            ckpt_path,
+            net=model.net,
+        ).net
+
+    log.info(
+        f"Starting pretraining for {cfg.pretrain.trainer.max_epochs} epochs"
+    )
+    pretrainer = hydra.utils.instantiate(
+        cfg.pretrain.trainer,
+        callbacks=instantiate_callbacks(cfg.pretrain.get("callbacks")),
+        logger=None,
+    )
+    cfg.pretrain.model.net.win_length = datamodule.win_length
+    cfg.pretrain.model.net.n_features = datamodule.n_features
+    pretrain_model = hydra.utils.instantiate(cfg.pretrain.model)
+    pretrainer.fit(
+        model=pretrain_model,
+        datamodule=datamodule,
+    )
+    return pretrain_model.net
+
+
 @hydra.main(version_base=None, config_path="../conf", config_name="train")
 def main(cfg: DictConfig) -> Optional[float]:
-    metric_dict, _ = train(cfg)
-    if cfg.get("optimized_metric"):
-        return metric_dict[cfg.optimized_metric]
+    train(cfg)
 
 
 if __name__ == "__main__":

@@ -3,8 +3,9 @@ defaults:
   - rich_progress_bar
   - _self_
 
+ckpt_path: null
+
 model_checkpoint:
-  dirpath: ${hydra:runtime.subdir}
   filename: "pretrained"
   monitor: "mse/val"
   mode: "min"

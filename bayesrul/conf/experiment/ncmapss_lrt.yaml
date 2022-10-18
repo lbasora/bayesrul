@@ -4,6 +4,7 @@
 # python train.py experiment=example
 
 defaults:
+  - /pretrain@pretrain: nn_mse
   - override /datamodule: ncmapss
   - override /model: bnn_lrt
   - override /callbacks: default

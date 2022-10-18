@@ -6,8 +6,8 @@
 defaults:
   - override /datamodule: ncmapss
   - override /model: bnn_fo
-  - override /callbacks: default.yaml
-  - override /trainer: default.yaml
+  - override /callbacks: default
+  - override /trainer: default
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
