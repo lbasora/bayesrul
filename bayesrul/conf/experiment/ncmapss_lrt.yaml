@@ -27,7 +27,7 @@ model:
       - { lr: 0.0001, betas: [0.95, 0.999], clip_norm: 15 }
   prior_scale: 0.08
   q_scale: 0.0004
-  pretrain: True
+  pretrain_epochs: 5
 
 datamodule:
   batch_size: 1000

@@ -3,8 +3,6 @@ defaults:
   - rich_progress_bar
   - _self_
 
-ckpt_path: null
-
 model_checkpoint:
   filename: "pretrained"
   monitor: "mse/val"

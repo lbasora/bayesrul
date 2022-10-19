@@ -1,7 +1,7 @@
 defaults:
   - inception
 
-_target_: bayesrul.lightning_wrappers.frequentist.NN
+_target_: bayesrul.models.frequentist.NN
 
 optimizer:
   _target_: torch.optim.Adam

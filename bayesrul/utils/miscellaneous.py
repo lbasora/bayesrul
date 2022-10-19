@@ -1,22 +1,45 @@
-import glob
-import os
 from pathlib import Path
 from typing import Union
 
-import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-from pytorch_lightning.utilities import rank_zero_only
 
 import numpy as np
+import pandas as pd
+from typing import Union, List, Dict
 
 
-class Dotdict(dict):
-    """dot.notation access to dictionary attributes"""
+class ResultSaver:
+    def __init__(self, path: Union[Path, str], filename: str = None) -> None:
+        self.path = Path(path, "predictions")
+        self.path.mkdir(exist_ok=True)
+        filename = "results.parquet" if filename is None else filename
+        self.file_path = Path(self.path, filename)
 
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
+    def save(self, df: pd.DataFrame) -> None:
+        if isinstance(df, dict):
+            df = pd.DataFrame(df)
+        assert isinstance(df, pd.DataFrame), f"{type(df)} is not a dataframe"
+        df.to_parquet(self.file_path)
+
+    def load(self) -> pd.DataFrame:
+        return pd.read_parquet(self.file_path)
+
+    def append(
+        self, series: Union[List[pd.Series], Dict[str, np.array]]
+    ) -> None:
+        if isinstance(series, list):
+            series = pd.concat(series, axis=1)
+        if isinstance(series, dict):
+            series = pd.DataFrame(series)
+        df = self.load()
+        df = pd.concat([df, series], axis=1)
+        assert isinstance(df, pd.DataFrame), f"{type(df)} is not a dataframe"
+        s = df.isna().sum()
+        if isinstance(s, pd.Series):
+            s = s.sum()
+        assert s == 0, "NaNs introduced in results dataframe"
+        self.save(df)
 
 
 def assert_same_shapes(*args):
@@ -41,32 +64,6 @@ def weights_init(m):
         torch.nn.init.kaiming_normal_(m.weight)
 
 
-def get_checkpoint(
-    path: Union[Path, str], version: int = None
-) -> Union[str, None]:
-    """Gets the checkpoint filename and path of a log directory"""
-    try:
-        path = os.path.join(os.getcwd(), path, "lightning_logs")
-        version_dir = (
-            sorted(glob.glob(path + "/version_*"), reverse=True)[-1]
-            if version is None
-            else f"version_{version}"
-        )
-        d = os.path.join(path, version_dir, "checkpoints")
-        if os.path.isdir(d):
-            checkpoint_file = sorted(
-                glob.glob(os.path.join(d, "*.ckpt")),
-                key=os.path.getmtime,
-                reverse=True,
-            )
-            return str(checkpoint_file[0]) if checkpoint_file else None
-        return None
-    except Exception as e:
-        if e == FileNotFoundError:
-            print("Could not find any checkpoint in {}".format(d))
-        return None
-
-
 def enable_dropout(model):
     """Function to enable the dropout layers during test-time"""
     for m in model.modules():
@@ -86,46 +83,3 @@ def numel(m: torch.nn.Module, only_trainable: bool = False):
         parameters = [p for p in parameters if p.requires_grad]
     unique = {p.data_ptr(): p for p in parameters}.values()
     return sum(p.numel() for p in unique)
-
-
-def simple_cull(inputPoints):
-    def dominates(row, candidateRow):
-        return sum([row[x] <= candidateRow[x] for x in range(len(row))]) == len(
-            row
-        )
-
-    paretoPoints = set()
-    candidateRowNr = 0
-    dominatedPoints = set()
-    while True:
-        candidateRow = inputPoints[candidateRowNr]
-        inputPoints.remove(candidateRow)
-        rowNr = 0
-        nonDominated = True
-        while len(inputPoints) != 0 and rowNr < len(inputPoints):
-            row = inputPoints[rowNr]
-            if dominates(candidateRow, row):
-                # If it is worse on all features remove the row from the array
-                inputPoints.remove(row)
-                dominatedPoints.add(tuple(row))
-            elif dominates(row, candidateRow):
-                nonDominated = False
-                dominatedPoints.add(tuple(candidateRow))
-                rowNr += 1
-            else:
-                rowNr += 1
-
-        if nonDominated:
-            # add the non-dominated point to the Pareto frontier
-            paretoPoints.add(tuple(candidateRow))
-
-        if len(inputPoints) == 0:
-            break
-
-    return paretoPoints, dominatedPoints
-
-
-def select_pareto(df, paretoSet):
-    """Selection of pareto optimal set"""
-    arr = np.array([[x1, x2] for x1, x2 in list(paretoSet)])
-    return df[(df.values_0.isin(arr[:, 0])) & (df.values_1.isin(arr[:, 1]))]

@@ -12,3 +12,11 @@ ckpt_path: null
 trainer:
   min_epochs: 1
   max_epochs: 1
+
+callbacks:
+  model_checkpoint:
+    filename: "pretrained"
+    monitor: "mse/val"
+    mode: "min"
+    save_last: False
+    auto_insert_metric_name: False

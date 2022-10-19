@@ -1,6 +1,10 @@
-data_path: "data/ncmapss/"
-out_path: "data/ncmapss/"
+builder:
+  _target_: bayesrul.data.ncmapss.preprocessing.build_ds
+  _partial_: true
+
 val_ratio: 0.1
+
+hdf5_path: ${paths.data_dir}/ncmapss/
 files:
   - N-CMAPSS_DS01-005
   - N-CMAPSS_DS02-006

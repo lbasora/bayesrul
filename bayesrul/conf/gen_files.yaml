@@ -1,6 +1,0 @@
-defaults:
-  - dataset: ncmapss
-  - _self_
-hydra:
-  job:
-    chdir: True

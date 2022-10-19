@@ -1,0 +1,10 @@
+# @package _global_
+defaults:
+  - _self_
+  - train
+  - hpsearch/study: study
+  - hpsearch/objective: hnn
+
+task_name: hpsearch
+tags: ["dev"]
+max_epochs: 100

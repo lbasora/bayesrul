@@ -1,0 +1,10 @@
+# @package _global_
+
+defaults:
+  - _self_
+  - dataset: ncmapss
+  - paths: default
+  - hydra: default
+
+task_name: build_ds
+tags: ["dev"]

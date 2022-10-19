@@ -1,7 +1,7 @@
 defaults:
   - nn
 
-_target_: bayesrul.lightning_wrappers.frequentist.HNN
+_target_: bayesrul.models.frequentist.HNN
 p_dropout: 0
 mc_samples_train: 1
 mc_samples_eval: 1
