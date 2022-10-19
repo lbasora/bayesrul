@@ -72,17 +72,15 @@ def train(cfg: DictConfig):
 
     if cfg.get("train"):
         log.info("Starting training!")
-        if cfg.get("ckpt_path"):
-            model = load_from_checkpoint(cfg, model, cfg.get("ckpt_path"))
-        elif cfg.model.get("pretrain_epochs"):
+        if cfg.model.get("pretrain_epochs") and not cfg.get("ckpt_path"):
             model.net = load_pretrained_net(cfg, model)
         trainer.fit(
-            model=model, datamodule=datamodule
-        )  # , ckpt_path=cfg.get("ckpt_path"))
+            model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path")
+        )
 
     train_metrics = trainer.callback_metrics
 
-    if cfg.get("test") and not "pretrain" in cfg.tags:
+    if cfg.get("test"):
         log.info("Starting testing!")
         ckpt_path = trainer.checkpoint_callback.best_model_path
         if ckpt_path == "":
@@ -90,11 +88,7 @@ def train(cfg: DictConfig):
                 "Best ckpt not found! Using current weights for testing..."
             )
             ckpt_path = None
-        else:
-            model = load_from_checkpoint(cfg, model, ckpt_path)
-        trainer.test(
-            model=model, datamodule=datamodule
-        )  # , ckpt_path=ckpt_path)
+        trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
         log.info(f"Best ckpt path: {ckpt_path}")
         log.info(f"Saving predicions: {cfg.paths.output_dir}/predictions/")
         results = ResultSaver(f"{cfg.paths.output_dir}")
@@ -105,19 +99,6 @@ def train(cfg: DictConfig):
     metric_dict = {**train_metrics, **test_metrics}
 
     return metric_dict, object_dict
-
-
-def load_from_checkpoint(cfg, model, ckpt_path):
-    log.info(f"Restoring state from: {ckpt_path}")
-    accelerator = "cuda" if cfg.trainer.accelerator == "gpu" else "cpu"
-    device = f"{accelerator}:{cfg.trainer.devices[0]}"
-    model = model.load_from_checkpoint(
-        ckpt_path,
-        map_location=device,
-        net=hydra.utils.instantiate(cfg.model.net),
-        strict=False,
-    )
-    return model
 
 
 def load_pretrained_net(cfg, model):

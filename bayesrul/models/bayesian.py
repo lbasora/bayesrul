@@ -97,6 +97,7 @@ class BNN(pl.LightningModule):
 
     def on_fit_start(self) -> None:
         self.define_bnn()
+        param_store_to(self.device)
         self.configure_optimizers()
 
         self.loss_name = "elbo"
@@ -197,6 +198,7 @@ class BNN(pl.LightningModule):
     def on_test_start(self) -> None:
         self.test_preds = {"preds": [], "labels": [], "stds": []}
         self.define_bnn()
+        param_store_to(self.device)
 
     def test_step(self, batch, batch_idx):
         (x, y) = batch[0], batch[1].squeeze()
@@ -239,28 +241,14 @@ class BNN(pl.LightningModule):
 
     def on_save_checkpoint(self, checkpoint):
         """Saving Pyro's param_store for the bnn's parameters"""
-        # print("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         checkpoint["param_store"] = pyro.get_param_store().get_state()
-        checkpoint["state_dict"] = remove_dict_entry_startswith(
-            checkpoint["state_dict"], "bnn"
-        )
 
     def on_load_checkpoint(self, checkpoint):
-        # print("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
         pyro.get_param_store().set_state(checkpoint["param_store"])
-        # checkpoint["state_dict"] = remove_dict_entry_startswith(
-        #     checkpoint["state_dict"], "bnn"
-        # )
-        # for k, v in pyro.get_param_store().get_state().items():
-        #     print(v)
 
 
-def remove_dict_entry_startswith(dictionary, string):
-    """Used to remove entries with 'bnn' in checkpoint state dict"""
-    n = len(string)
-    for key in dictionary:
-        if string == key[:n]:
-            dict2 = dictionary.copy()
-            dict2.pop(key)
-            dictionary = dict2
-    return dictionary
+def param_store_to(device: str):
+    ps = pyro.get_param_store().get_state()
+    for k in ps["params"].keys():
+        ps["params"][k] = ps["params"][k].to(device)
+    pyro.get_param_store().set_state(ps)
