@@ -25,6 +25,15 @@ model:
     lr: 0.001
     weight_decay: 0.001
   p_dropout: 0.25
+  mc_samples_train: 1
+  mc_samples_eval: 20
 
 datamodule:
   batch_size: 1000
+
+callbacks:
+  model_checkpoint:
+    monitor: nll/val
+
+  early_stopping:
+    monitor: nll/val

@@ -1,10 +1,11 @@
 # @package _global_
 defaults:
-  - _self_
   - train
-  - hpsearch/study: study
-  - hpsearch/objective: hnn
+  - hpsearch: ncmapss_hnn
+  - debug: null
+  - _self_
 
 task_name: hpsearch
-tags: ["dev"]
-max_epochs: 100
+hpsearch:
+  n_trials: 60
+test: False

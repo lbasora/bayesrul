@@ -1,0 +1,11 @@
+# @package _global_
+
+defaults:
+  - /hpsearch/study: study
+  - /hpsearch/objective: mcd
+  - override /experiment: ncmapss_mcd
+
+hpsearch:
+  monitor: nll/val
+  study:
+    study_name: ncmapss_mcd

@@ -1,6 +1,6 @@
 _target_: optuna.create_study
 direction: minimize
-study_name: ncmapss
+study_name: ???
 sampler:
   _target_: optuna.samplers.TPESampler
   seed: 1234

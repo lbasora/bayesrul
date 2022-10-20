@@ -72,7 +72,7 @@ def train(cfg: DictConfig):
 
     if cfg.get("train"):
         log.info("Starting training!")
-        if cfg.model.get("pretrain_epochs") and not cfg.get("ckpt_path"):
+        if cfg.model.get("pretrain_epochs") > 0 and not cfg.get("ckpt_path"):
             model.net = load_pretrained_net(cfg, model)
         trainer.fit(
             model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path")
@@ -102,8 +102,6 @@ def train(cfg: DictConfig):
 
 
 def load_pretrained_net(cfg, model):
-    if cfg.model.pretrain_epochs == 0:
-        return hydra.utils.instantiate(cfg.model.net)
     ckpt_path_dir = Path(f"{cfg.paths.results_dir}/{cfg.tags[0]}/pretrained")
     if ckpt_path_dir is not None:
         ckpt_path = None
@@ -121,9 +119,13 @@ def load_pretrained_net(cfg, model):
                 ckpt_path,
                 net=model.net,
             ).net
-    log.info(
-        f"No pretrained net found in {ckpt_path_dir} for {cfg.model.pretrain_epochs}"
-    )
+        log.info(
+            f"No pretrained net found in {ckpt_path_dir} for {cfg.model.pretrain_epochs}"
+        )
+    else:
+        log.info(
+            f"No pretrained nets found in {cfg.paths.results_dir}/{cfg.tags[0]}/pretrained"
+        )
     return hydra.utils.instantiate(cfg.model.net)
 
 

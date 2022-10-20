@@ -1,0 +1,17 @@
+# @package _global_
+
+defaults:
+  - /hpsearch/study: study
+  - /hpsearch/objective: bnn
+  - override /experiment: ncmapss_rad
+
+hpsearch:
+  monitor: elbo/val
+  study:
+    study_name: ncmapss_rad
+
+trainer:
+  max_epochs: 50
+
+callbacks:
+  early_stopping: null
