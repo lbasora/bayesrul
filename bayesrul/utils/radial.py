@@ -1,7 +1,7 @@
 ################################################################################
 ## I AM NOT THE AUTHOR OF THIS CODE, AUTHOR : https://github.com/silasbrack
-## https://github.com/silasbrack/approximate-inference-for-bayesian-neural- 
-## networks/blob/main/src/guides/radial.py 
+## https://github.com/silasbrack/approximate-inference-for-bayesian-neural-
+## networks/blob/main/src/guides/radial.py
 ## Using it for experimentation purposes
 ################################################################################
 
@@ -68,7 +68,7 @@ class AutoRadial(autoguide.AutoGuide):
             )
             if self.train_loc:
                 unconstrained_value = pyro.nn.PyroParam(unconstrained_value)
-            autoguide.guides._deep_setattr(
+            autoguide.guides.deep_setattr(
                 self, name + ".loc", unconstrained_value
             )
             if isinstance(self.init_scale, numbers.Real):
@@ -92,7 +92,7 @@ class AutoRadial(autoguide.AutoGuide):
                 if self.train_scale
                 else scale_value
             )
-            autoguide.guides._deep_setattr(self, name + ".scale", scale)
+            autoguide.guides.deep_setattr(self, name + ".scale", scale)
 
     def get_loc(self, site_name):
         return pyro.util.deep_getattr(self, site_name + ".loc")
@@ -103,8 +103,7 @@ class AutoRadial(autoguide.AutoGuide):
     def get_detached_distributions(self, site_names=None):
         if site_names is None:
             site_names = list(
-                name
-                for name, _ in self.prototype_trace.iter_stochastic_nodes()
+                name for name, _ in self.prototype_trace.iter_stochastic_nodes()
             )
 
         result = dict()
