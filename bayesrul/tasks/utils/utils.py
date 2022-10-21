@@ -28,7 +28,7 @@ def task_wrapper(task_func: Callable) -> Callable:
     - Logging the output dir
     """
 
-    def wrap(cfg: DictConfig):
+    def wrap(cfg: DictConfig, callbacks: List[Callback]):
 
         # apply extra utilities
         extras(cfg)
@@ -36,7 +36,7 @@ def task_wrapper(task_func: Callable) -> Callable:
         # execute the task
         try:
             start_time = time.time()
-            metric_dict, object_dict = task_func(cfg=cfg)
+            metric_dict, object_dict = task_func(cfg=cfg, callbacks=callbacks)
         except Exception as ex:
             log.exception("")  # save exception to `.log` file
             raise ex
@@ -94,7 +94,9 @@ def save_file(path: str, content: str) -> None:
         file.write(content)
 
 
-def instantiate_callbacks(callbacks_cfg: DictConfig) -> List[Callback]:
+def instantiate_callbacks(
+    callbacks_cfg: DictConfig, exclude: List[str] = None
+) -> List[Callback]:
     """Instantiates callbacks from config."""
     callbacks: List[Callback] = []
 
@@ -105,7 +107,9 @@ def instantiate_callbacks(callbacks_cfg: DictConfig) -> List[Callback]:
     if not isinstance(callbacks_cfg, DictConfig):
         raise TypeError("Callbacks config must be a DictConfig!")
 
-    for _, cb_conf in callbacks_cfg.items():
+    for name, cb_conf in callbacks_cfg.items():
+        if exclude is not None and name in exclude:
+            continue
         if isinstance(cb_conf, DictConfig) and "_target_" in cb_conf:
             log.info(f"Instantiating callback <{cb_conf._target_}>")
             callbacks.append(hydra.utils.instantiate(cb_conf))

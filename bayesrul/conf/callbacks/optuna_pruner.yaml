@@ -1,0 +1,2 @@
+optuna_pruner:
+  _target_: optuna.integration.PyTorchLightningPruningCallback

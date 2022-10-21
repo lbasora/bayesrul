@@ -3,6 +3,7 @@ defaults:
   - train
   - hpsearch: ncmapss_hnn
   - debug: null
+  - override /callbacks: hpsearch
   - _self_
 
 task_name: hpsearch

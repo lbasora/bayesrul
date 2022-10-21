@@ -33,7 +33,7 @@ log = get_pylogger(__name__)
 
 
 @task_wrapper
-def train(cfg: DictConfig):
+def train(cfg: DictConfig, callbacks: List[Callback] = None):
     log.info(f"Instantiating datamodule <{cfg.datamodule._target_}>")
     datamodule: LightningDataModule = hydra.utils.instantiate(cfg.datamodule)
 
@@ -46,8 +46,9 @@ def train(cfg: DictConfig):
         cfg.model, _convert_="partial"
     )
 
-    log.info("Instantiating callbacks...")
-    callbacks: List[Callback] = instantiate_callbacks(cfg.get("callbacks"))
+    if callbacks is None:
+        log.info("Instantiating callbacks...")
+        callbacks = instantiate_callbacks(cfg.get("callbacks"))
 
     log.info("Instantiating loggers...")
     logger: List[LightningLoggerBase] = instantiate_loggers(cfg.get("logger"))
