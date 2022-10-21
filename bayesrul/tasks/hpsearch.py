@@ -21,72 +21,55 @@ from .utils import get_pylogger
 log = get_pylogger(__name__)
 
 
-def objective(trial: Trial, cfg: DictConfig):
+def objective(trial: Trial, cfg: DictConfig, output_dir: str):
     cfg.datamodule.batch_size = trial.suggest_categorical(
-        "batch_size", [100, 250, 500]
+        "batch_size", [100, 250, 500, 1000]
     )
     log.info(f"{cfg.datamodule.batch_size} batch_size")
-
-    cfg.paths.output_dir = f"{cfg.paths.output_dir}/{trial.number:03d}"
+    log.info(
+        f"_________________ Starting trial {trial.number:03d} __________________"
+    )
+    cfg.paths.output_dir = f"{output_dir}/{trial.number:03d}"
     metric_dict, _ = train(cfg)
     return metric_dict[cfg.hpsearch.monitor]
 
 
-def objective_hnn(trial: Trial, cfg: DictConfig):
-    log.info(
-        f"_________________ Starting trial {trial.number:03d} __________________"
-    )
-
-    cfg.model.optimizer.lr = trial.suggest_float("lr", 1e-4, 1e-1, log=True)
+def objective_hnn(trial: Trial, cfg: DictConfig, output_dir: str):
+    cfg.model.optimizer.lr = trial.suggest_float("lr", 1e-4, 5e-3, log=True)
     log.info(f"{cfg.model.optimizer.lr} lr")
+    return objective(trial, cfg, output_dir)
 
-    return objective(trial, cfg)
 
-
-def objective_mcd(trial: Trial, cfg: DictConfig):
-    log.info(
-        f"_________________ Starting trial {trial.number:03d} __________________"
+def objective_mcd(trial: Trial, cfg: DictConfig, output_dir: str):
+    cfg.model.mc_samples = trial.suggest_categorical(
+        "mc_samples", [20, 50, 100]
     )
-    cfg.model.mc_samples_train = trial.suggest_categorical(
-        "mc_samples_train", [1, 2, 4, 6]
-    )
-    log.info(f"{cfg.model.mc_samples_train} mc_samples_train")
-
+    log.info(f"{cfg.model.mc_samples} mc_samples")
     cfg.model.p_dropout = trial.suggest_float("p_dropout", 0.20, 0.85)
     log.info(f"{cfg.model.p_dropout} p_dropout")
+    return objective_hnn(trial, cfg, output_dir)
 
-    return objective_hnn(trial, cfg)
 
-
-def objective_bnn(trial: Trial, cfg: DictConfig):
-    log.info(
-        f"_________________ Starting trial {trial.number:03d} __________________"
-    )
-
+def objective_bnn(trial: Trial, cfg: DictConfig, output_dir: str):
     cfg.model.pretrain_epochs = trial.suggest_categorical(
-        "pretrain_epochs", [0, 5, 10]
+        "pretrain_epochs", [0, 5]
     )
     log.info(f"{cfg.model.pretrain_epochs} pretrain_epochs")
-
     cfg.model.optimizer._args_[0]["lr"] = trial.suggest_float(
-        "lr", 1e-4, 1e-1, log=True
+        "lr", 1e-5, 1e-3, log=True
     )
     log.info(f"{cfg.model.optimizer._args_[0]['lr']} lr")
-
     cfg.model.mc_samples_train = trial.suggest_categorical(
-        "mc_samples_train", [1, 2, 4]
+        "mc_samples_train", [1, 2]
     )
     log.info(f"{cfg.model.mc_samples_train} mc_samples_train")
-
     cfg.model.prior_scale = trial.suggest_float(
-        "prior_scale", 1e-2, 0.9, log=True
+        "prior_scale", 1e-2, 0.5, log=True
     )
     log.info(f"{cfg.model.prior_scale} prior_scale")
-
-    cfg.model.q_scale = trial.suggest_float("q_scale", 1e-4, 1e-1, log=True)
+    cfg.model.q_scale = trial.suggest_float("q_scale", 1e-4, 1e-2, log=True)
     log.info(f"{cfg.model.q_scale} q_scale")
-
-    return objective(trial, cfg)
+    return objective(trial, cfg, output_dir)
 
 
 @hydra.main(version_base=None, config_path="../conf", config_name="hpsearch")
@@ -101,9 +84,10 @@ def main(cfg: DictConfig) -> Optional[float]:
     log.info(f"Instantiating objective <{cfg.hpsearch.objective._target_}>")
     objective = hydra.utils.instantiate(cfg.hpsearch.objective, _partial_=True)
 
+    output_dir = cfg.paths.output_dir
     log.info(f"Starting hyperparameter search ...")
     study.optimize(
-        lambda trial: objective(trial, cfg),
+        lambda trial: objective(trial, cfg, output_dir),
         n_trials=cfg.hpsearch.n_trials,
         timeout=None,
         catch=(RuntimeError,),

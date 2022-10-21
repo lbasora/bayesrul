@@ -3,3 +3,4 @@ net:
   win_length: ???
   n_features: ???
   activation: relu
+  dropout: 0

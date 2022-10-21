@@ -9,6 +9,6 @@ pruner:
   _target_: optuna.pruners.PatientPruner
   wrapped_pruner:
     _target_: optuna.pruners.MedianPruner
-  patience: 10
+  patience: 2
 storage: ???
 load_if_exists: True

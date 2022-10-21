@@ -72,8 +72,9 @@ def train(cfg: DictConfig):
 
     if cfg.get("train"):
         log.info("Starting training!")
-        if cfg.model.get("pretrain_epochs") > 0 and not cfg.get("ckpt_path"):
-            model.net = load_pretrained_net(cfg, model)
+        if cfg.model.get("pretrain_epochs") and not cfg.get("ckpt_path"):
+            if cfg.model.pretrain_epochs > 0:
+                model.net = load_pretrained_net(cfg, model)
         trainer.fit(
             model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path")
         )

@@ -9,3 +9,9 @@ hpsearch:
   monitor: nll/val
   study:
     study_name: ncmapss_mcd
+
+trainer:
+  max_epochs: 50
+
+callbacks:
+  early_stopping: null

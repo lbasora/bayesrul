@@ -19,8 +19,7 @@ class HNN(pl.LightningModule):
         self,
         net: torch.nn.Module,
         optimizer: torch.optim.Optimizer,
-        mc_samples_train: int,
-        mc_samples_eval: int,
+        mc_samples: int,
         p_dropout: int,
     ):
         super().__init__()
@@ -53,30 +52,8 @@ class HNN(pl.LightningModule):
         self.log(f"nll/{phase}", loss, on_step=False, on_epoch=True)
         return loss, loc, scale
 
-    def mc_sampling(self, batch, mc_samples: int, phase: str):
-        enable_dropout(self.net)
-        losses = []
-        locs = []
-        scales = []
-        for _ in range(mc_samples):
-            loss, loc, scale = self.step(batch, phase)
-            losses.append(loss)
-            locs.append(loc)
-            scales.append(scale)
-        loss = torch.stack(losses).mean()
-        locs = torch.stack(locs)
-        scales = torch.stack(scales)
-        scale = scales.pow(2).mean(0).add(locs.var(0)).sqrt()
-        loc = locs.mean(axis=0)
-        return loss, loc, scale
-
     def training_step(self, batch, batch_idx):
-        if self.net.dropout > 0:  # MC-Dropout
-            loss, loc, scale = self.mc_sampling(
-                batch, self.hparams.mc_samples_train, phase="train"
-            )
-        else:
-            loss, loc, scale = self.step(batch, "train")
+        loss, loc, scale = self.step(batch, "train")
         mse = F.mse_loss(loc, batch[1])
         rmsce = rms_calibration_error(loc, scale, batch[1])
         sharp = sharpness(scale)
@@ -85,11 +62,28 @@ class HNN(pl.LightningModule):
         self.log("sharp/train", sharp, on_step=False, on_epoch=True)
         return loss
 
+    def mc_sampling(self, batch, mc_samples: int, phase: str):
+        losses = []
+        locs = []
+        scales = []
+        for _ in range(mc_samples):
+            loss, loc, scale = self.step(batch, phase)
+            losses.append(loss)
+            locs.append(loc)
+            scales.append(scale)
+        loss = torch.stack(losses).mean(0)
+        locs = torch.stack(locs)
+        scales = torch.stack(scales)
+        scale = scales.pow(2).mean(0).add(locs.var(0)).sqrt()
+        loc = locs.mean(0)
+        return loss, loc, scale
+
     def validation_step(self, batch, batch_idx):
         phase = "val"
         if self.net.dropout > 0:
+            enable_dropout(self.net)
             loss, loc, scale = self.mc_sampling(
-                batch, self.hparams.mc_samples_eval, phase=phase
+                batch, self.hparams.mc_samples, phase=phase
             )
         else:
             loss, loc, scale = self.step(batch, phase)
@@ -116,8 +110,9 @@ class HNN(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         phase = "test"
         if self.net.dropout > 0:
+            enable_dropout(self.net)
             loss, loc, scale = self.mc_sampling(
-                batch, self.hparams.mc_samples_eval, phase=phase
+                batch, self.hparams.mc_samples, phase=phase
             )
         else:
             loss, loc, scale = self.step(batch, phase)
