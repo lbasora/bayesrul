@@ -158,7 +158,9 @@ class BNN(pl.LightningModule):
         rmsce = rms_calibration_error(loc, scale, y.squeeze())
         sharp = sharpness(scale)
         self.log("mse/train", mse, on_step=False, on_epoch=True)
-        self.log("elbo/train", elbo, on_step=False, on_epoch=True)
+        self.log(
+            "elbo/train", elbo, on_step=False, on_epoch=True, prog_bar=True
+        )
         self.log("kl/train", kl, on_step=False, on_epoch=True)
         self.log("likelihood/train", elbo - kl, on_step=False, on_epoch=True)
         self.log("rmsce/train", rmsce, on_step=False, on_epoch=True)
@@ -188,7 +190,7 @@ class BNN(pl.LightningModule):
         rmsce = rms_calibration_error(loc, scale, y.squeeze())
         sharp = sharpness(scale)
 
-        self.log("elbo/val", elbo)
+        self.log("elbo/val", elbo, prog_bar=True)
         self.log("mse/val", mse)
         self.log("kl/val", kl)
         self.log("likelihood/val", elbo - kl)

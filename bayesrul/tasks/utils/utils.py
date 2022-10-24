@@ -2,9 +2,10 @@ import time
 import warnings
 from importlib.util import find_spec
 from pathlib import Path
-from typing import Any, Callable, Dict, List
+from typing import Callable, List, Optional
 
 import hydra
+import optuna
 from omegaconf import DictConfig
 from pytorch_lightning import Callback
 from pytorch_lightning.loggers import LightningLoggerBase
@@ -28,7 +29,7 @@ def task_wrapper(task_func: Callable) -> Callable:
     - Logging the output dir
     """
 
-    def wrap(cfg: DictConfig, callbacks: List[Callback]):
+    def wrap(cfg: DictConfig, trial: Optional[optuna.trial.Trial]):
 
         # apply extra utilities
         extras(cfg)
@@ -36,7 +37,7 @@ def task_wrapper(task_func: Callable) -> Callable:
         # execute the task
         try:
             start_time = time.time()
-            metric_dict, object_dict = task_func(cfg=cfg, callbacks=callbacks)
+            metric_dict, object_dict = task_func(cfg=cfg, trial=trial)
         except Exception as ex:
             log.exception("")  # save exception to `.log` file
             raise ex
@@ -95,10 +96,12 @@ def save_file(path: str, content: str) -> None:
 
 
 def instantiate_callbacks(
-    callbacks_cfg: DictConfig, exclude: List[str] = None
+    cfg: DictConfig, trial: Optional[optuna.trial.Trial] = None
 ) -> List[Callback]:
     """Instantiates callbacks from config."""
     callbacks: List[Callback] = []
+
+    callbacks_cfg = cfg.get("callbacks")
 
     if not callbacks_cfg:
         log.warning("Callbacks config is empty.")
@@ -108,12 +111,17 @@ def instantiate_callbacks(
         raise TypeError("Callbacks config must be a DictConfig!")
 
     for name, cb_conf in callbacks_cfg.items():
-        if exclude is not None and name in exclude:
-            continue
         if isinstance(cb_conf, DictConfig) and "_target_" in cb_conf:
             log.info(f"Instantiating callback <{cb_conf._target_}>")
-            callbacks.append(hydra.utils.instantiate(cb_conf))
-
+            callbacks.append(
+                hydra.utils.instantiate(
+                    callbacks_cfg.optuna_pruner,
+                    trial=trial,
+                    monitor=cfg.hpsearch.monitor,
+                )
+                if name == "optuna_pruner" and trial is not None
+                else hydra.utils.instantiate(cb_conf)
+            )
     return callbacks
 
 

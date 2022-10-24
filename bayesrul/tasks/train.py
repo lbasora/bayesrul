@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import hydra
+import optuna
 import pyrootutils
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import (
@@ -33,7 +34,7 @@ log = get_pylogger(__name__)
 
 
 @task_wrapper
-def train(cfg: DictConfig, callbacks: List[Callback] = None):
+def train(cfg: DictConfig, trial: Optional[optuna.trial.Trial] = None):
     log.info(f"Instantiating datamodule <{cfg.datamodule._target_}>")
     datamodule: LightningDataModule = hydra.utils.instantiate(cfg.datamodule)
 
@@ -46,9 +47,8 @@ def train(cfg: DictConfig, callbacks: List[Callback] = None):
         cfg.model, _convert_="partial"
     )
 
-    if callbacks is None:
-        log.info("Instantiating callbacks...")
-        callbacks = instantiate_callbacks(cfg.get("callbacks"))
+    log.info("Instantiating callbacks...")
+    callbacks = instantiate_callbacks(cfg, trial)
 
     log.info("Instantiating loggers...")
     logger: List[LightningLoggerBase] = instantiate_loggers(cfg.get("logger"))
@@ -137,7 +137,7 @@ def load_pretrained_net(cfg, model):
 
 @hydra.main(version_base=None, config_path="../conf", config_name="train")
 def main(cfg: DictConfig) -> Optional[float]:
-    train(cfg, None)
+    train(cfg)
 
 
 if __name__ == "__main__":
