@@ -11,7 +11,7 @@ hpsearch:
     study_name: ncmapss_lrt
 
 trainer:
-  max_epochs: 50
+  max_epochs: 20
 
 callbacks:
   early_stopping: null

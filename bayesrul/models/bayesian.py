@@ -1,6 +1,7 @@
 import contextlib
 import copy
 from functools import partial
+from attr import has
 
 import pyro
 import pyro.distributions as dist
@@ -70,7 +71,7 @@ class BNN(pl.LightningModule):
 
         likelihood = tyxe.likelihoods.HeteroskedasticGaussian(
             self.hparams.dataset_size,
-            positive_scale=False,  # scale=likelihood_scale
+            positive_scale=False,
         )
 
         guide_kwargs = {"init_scale": self.hparams.q_scale}
@@ -100,7 +101,6 @@ class BNN(pl.LightningModule):
         param_store_to(self.device)
         self.configure_optimizers()
 
-        self.loss_name = "elbo"
         self.loss = (
             TraceMeanField_ELBO(self.hparams.mc_samples_train)
             if self.hparams.guide != "radial"
@@ -245,6 +245,10 @@ class BNN(pl.LightningModule):
 
     def on_load_checkpoint(self, checkpoint):
         pyro.get_param_store().set_state(checkpoint["param_store"])
+        if not hasattr(self, "bnn"):
+            checkpoint["state_dict"] = remove_dict_entry_startswith(
+                checkpoint["state_dict"], "bnn"
+            )
 
 
 def param_store_to(device: str):
@@ -252,3 +256,14 @@ def param_store_to(device: str):
     for k in ps["params"].keys():
         ps["params"][k] = ps["params"][k].to(device)
     pyro.get_param_store().set_state(ps)
+
+
+def remove_dict_entry_startswith(dictionary, string):
+    """Used to remove entries with 'bnn' in checkpoint state dict"""
+    n = len(string)
+    for key in dictionary:
+        if string == key[:n]:
+            dict2 = dictionary.copy()
+            dict2.pop(key)
+            dictionary = dict2
+    return dictionary

@@ -19,7 +19,6 @@ from optuna.trial import Trial
 from .utils import get_pylogger, instantiate_callbacks
 
 log = get_pylogger(__name__)
-pruner_in_callbacks = False
 
 
 def objective(trial: Trial, cfg: DictConfig, output_dir: str):
@@ -32,21 +31,18 @@ def objective(trial: Trial, cfg: DictConfig, output_dir: str):
     )
     cfg.paths.output_dir = f"{output_dir}/{trial.number:03d}"
 
-    global pruner_in_callbacks
-    callbacks = None
-    if not pruner_in_callbacks:
-        log.info("Instantiating callbacks (with optuna pruner)...")
-        callbacks = instantiate_callbacks(
-            cfg.get("callbacks"), exclude=["optuna_pruner"]
+    log.info("Instantiating callbacks ...")
+    callbacks = instantiate_callbacks(
+        cfg.get("callbacks"), exclude=["optuna_pruner"]
+    )
+    log.info(f"Instantiating callback <{cfg.callbacks.optuna_pruner._target_}>")
+    callbacks.append(
+        hydra.utils.instantiate(
+            cfg.callbacks.optuna_pruner,
+            trial=trial,
+            monitor=cfg.hpsearch.monitor,
         )
-        callbacks.append(
-            hydra.utils.instantiate(
-                cfg.callbacks.optuna_pruner,
-                trial=trial,
-                monitor=cfg.hpsearch.monitor,
-            )
-        )
-        pruner_in_callbacks = True
+    )
     metric_dict, _ = train(cfg, callbacks)
     return metric_dict[cfg.hpsearch.monitor]
 

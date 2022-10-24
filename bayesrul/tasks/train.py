@@ -84,12 +84,16 @@ def train(cfg: DictConfig, callbacks: List[Callback] = None):
 
     if cfg.get("test"):
         log.info("Starting testing!")
-        ckpt_path = trainer.checkpoint_callback.best_model_path
-        if ckpt_path == "":
-            log.warning(
-                "Best ckpt not found! Using current weights for testing..."
-            )
-            ckpt_path = None
+        ckpt_path = None
+        if cfg.get("ckpt_path"):
+            ckpt_path = cfg.ckpt_path
+        else:
+            ckpt_path = trainer.checkpoint_callback.best_model_path
+            if ckpt_path == "":
+                log.warning(
+                    "Best ckpt not found! Using current weights for testing..."
+                )
+                ckpt_path = None
         trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
         log.info(f"Best ckpt path: {ckpt_path}")
         log.info(f"Saving predicions: {cfg.paths.output_dir}/predictions/")
@@ -133,7 +137,7 @@ def load_pretrained_net(cfg, model):
 
 @hydra.main(version_base=None, config_path="../conf", config_name="train")
 def main(cfg: DictConfig) -> Optional[float]:
-    train(cfg)
+    train(cfg, None)
 
 
 if __name__ == "__main__":
