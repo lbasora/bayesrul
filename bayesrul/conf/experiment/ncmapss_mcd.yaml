@@ -18,19 +18,19 @@ seed: 12345
 
 trainer:
   min_epochs: 1
-  max_epochs: 1
+  max_epochs: 500
 
 model:
   net:
     dropout: ${model.p_dropout}
   optimizer:
-    lr: 0.001
+    lr: 0.000772
     weight_decay: 0.001
-  p_dropout: 0.25
-  mc_samples: 20
+  p_dropout: 0.241437
+  mc_samples: 100
 
 datamodule:
-  batch_size: 1000
+  batch_size: 100
 
 callbacks:
   model_checkpoint:
@@ -38,3 +38,4 @@ callbacks:
 
   early_stopping:
     monitor: nll/val
+    patience: 50

@@ -137,7 +137,7 @@ def load_pretrained_net(cfg, model):
 
 @hydra.main(version_base=None, config_path="../conf", config_name="train")
 def main(cfg: DictConfig) -> Optional[float]:
-    train(cfg)
+    train(cfg, trial=None)
 
 
 if __name__ == "__main__":

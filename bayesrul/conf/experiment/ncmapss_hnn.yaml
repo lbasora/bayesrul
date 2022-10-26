@@ -12,7 +12,7 @@ seed: 12345
 
 trainer:
   min_epochs: 1
-  max_epochs: 150
+  max_epochs: 500
 
 model:
   optimizer:
@@ -28,3 +28,4 @@ callbacks:
 
   early_stopping:
     monitor: nll/val
+    patience: 50

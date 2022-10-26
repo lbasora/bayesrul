@@ -12,20 +12,20 @@ seed: 12345
 
 trainer:
   min_epochs: 1
-  max_epochs: 150
+  max_epochs: 500
 
 model:
   optimizer:
     _args_:
-      - { lr: 0.0001, betas: [0.95, 0.999], clip_norm: 15 }
-  prior_scale: 0.08
-  q_scale: 0.0004
+      - { lr: 0.000347, betas: [0.95, 0.999], clip_norm: 15 }
+  prior_scale: 0.362419
+  q_scale: 0.000432
   pretrain_epochs: 5
-  mc_samples_train: 1
-  mc_samples_eval: 20
+  mc_samples_train: 2
+  mc_samples_eval: 100
 
 datamodule:
-  batch_size: 1000
+  batch_size: 250
 
 callbacks:
   model_checkpoint:
@@ -33,3 +33,4 @@ callbacks:
 
   early_stopping:
     monitor: elbo/val
+    patience: 50

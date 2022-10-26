@@ -1,0 +1,11 @@
+# @package _global_
+
+defaults:
+  - _self_
+  - dataset: ncmapss
+  - paths: default
+  - hydra: default
+
+task_name: deepens
+tags: ["ncmapss", "hnn"] # dataset, base_learner
+
