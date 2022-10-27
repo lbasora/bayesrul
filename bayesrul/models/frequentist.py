@@ -2,8 +2,8 @@ import pytorch_lightning as pl
 import torch
 from torch.functional import F
 
-from bayesrul.utils.metrics import rms_calibration_error, sharpness
-from bayesrul.utils.miscellaneous import enable_dropout, weights_init
+from ..results.metrics import rms_calibration_error, sharpness
+from ..utils.miscellaneous import enable_dropout, weights_init
 
 
 class HNN(pl.LightningModule):

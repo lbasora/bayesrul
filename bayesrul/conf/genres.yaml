@@ -1,0 +1,16 @@
+# @package _global_
+
+defaults:
+  - _self_
+  - paths: default
+  - hydra: default
+
+task_name: genres
+tags: ["dev"]
+dataset: ncmapss
+runs_dir: ${paths.results_dir}/${dataset}/runs
+cache_dir: ${paths.results_dir}/${dataset}/cache
+figs_dir: ${paths.results_dir}/${dataset}/figs
+methods: ["LRT", "FO", "RAD", "MCD", "DE", "HNN"]
+de_base_learners: ["HNN", "FO"]
+metrics: ["mae", "rmse", "nll", "rmsce", "sharp"]

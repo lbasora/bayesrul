@@ -1,20 +1,20 @@
 import contextlib
 import copy
 from functools import partial
-from attr import has
 
 import pyro
 import pyro.distributions as dist
 import pytorch_lightning as pl
 import torch
 import tyxe
+from attr import has
 from pyro.infer import SVI, Trace_ELBO, TraceMeanField_ELBO
 from torch.functional import F
 from tyxe.bnn import VariationalBNN
 
-from bayesrul.utils.metrics import rms_calibration_error, sharpness
-from bayesrul.utils.miscellaneous import weights_init
-from bayesrul.utils.radial import AutoRadial
+from ..results.metrics import rms_calibration_error, sharpness
+from ..utils.miscellaneous import weights_init
+from .guides.radial import AutoRadial
 
 
 class BNN(pl.LightningModule):
