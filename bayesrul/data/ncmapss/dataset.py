@@ -37,6 +37,7 @@ class NCMAPSSDataModule(pl.LightningDataModule):
         self,
         data_path,
         batch_size,
+        test_batch_size=10000,
         all_dset=False,
         num_workers=12,
         pin_memory=True,
@@ -44,6 +45,7 @@ class NCMAPSSDataModule(pl.LightningDataModule):
         super().__init__()
         self.data_path = data_path
         self.batch_size = batch_size
+        self.test_batch_size = test_batch_size
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.all_dset = all_dset
@@ -105,7 +107,7 @@ class NCMAPSSDataModule(pl.LightningDataModule):
     def test_dataloader(self) -> DataLoader:
         return DataLoader(
             self.datasets["test"],
-            batch_size=self.batch_size,
+            batch_size=self.test_batch_size,
             shuffle=False,  # Important. do NOT shuffle or results will be false
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,

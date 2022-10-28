@@ -11,7 +11,7 @@ optimizer:
 
 pretrain_epochs: 0
 mc_samples_train: 1
-mc_samples_eval: 10
+mc_samples_eval: 20
 dataset_size: ???
 fit_context: null
 prior_loc: 0

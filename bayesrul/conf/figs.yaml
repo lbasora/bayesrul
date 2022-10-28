@@ -5,7 +5,7 @@ defaults:
   - paths: default
   - hydra: default
 
-task_name: genres
+task_name: figs
 tags: ["dev"]
 dataset: ncmapss
 runs_dir: ${paths.results_dir}/${dataset}/runs
@@ -14,3 +14,6 @@ figs_dir: ${paths.results_dir}/${dataset}/figs
 methods: ["LRT", "FO", "RAD", "MCD", "DE", "HNN"]
 de_base_learners: ["HNN", "FO"]
 metrics: ["mae", "rmse", "nll", "rmsce", "sharp"]
+csv_tables: true
+latex: true
+latex_pdf: true

@@ -38,6 +38,7 @@ class BNN(pl.LightningModule):
         q_scale: float,
     ):
         super().__init__()
+        pyro.clear_param_store()
         self.save_hyperparameters(logger=False, ignore=["net"])
         self.net = net
 
@@ -158,9 +159,7 @@ class BNN(pl.LightningModule):
         rmsce = rms_calibration_error(loc, scale, y.squeeze())
         sharp = sharpness(scale)
         self.log("mse/train", mse, on_step=False, on_epoch=True)
-        self.log(
-            "elbo/train", elbo, on_step=False, on_epoch=True, prog_bar=True
-        )
+        self.log("elbo/train", elbo, on_step=False, on_epoch=True)
         self.log("kl/train", kl, on_step=False, on_epoch=True)
         self.log("likelihood/train", elbo - kl, on_step=False, on_epoch=True)
         self.log("rmsce/train", rmsce, on_step=False, on_epoch=True)
@@ -190,7 +189,7 @@ class BNN(pl.LightningModule):
         rmsce = rms_calibration_error(loc, scale, y.squeeze())
         sharp = sharpness(scale)
 
-        self.log("elbo/val", elbo, prog_bar=True)
+        self.log("elbo/val", elbo)
         self.log("mse/val", mse)
         self.log("kl/val", kl)
         self.log("likelihood/val", elbo - kl)
@@ -198,45 +197,44 @@ class BNN(pl.LightningModule):
         self.log("sharp/val", sharp)
 
     def on_test_start(self) -> None:
-        self.test_preds = {"preds": [], "labels": [], "stds": []}
+        self.test_preds = {
+            "preds": [],
+            "labels": [],
+            "stds": [],
+            "ep_vars": [],
+            "al_vars": [],
+        }
         self.define_bnn()
         param_store_to(self.device)
 
     def test_step(self, batch, batch_idx):
-        (x, y) = batch[0], batch[1].squeeze()
+        (x, y) = batch[0], batch[1]
         output = self.bnn.predict(
             x,
             num_predictions=self.hparams.mc_samples_eval,
-            aggregate=self.hparams.mc_samples_eval > 1,
-        ).squeeze()
-        loc, scale = output[:, 0], output[:, 1]
+            aggregate=False,
+        )
+        loc, scale = output[:, :, 0], output[:, :, 1]
+
+        ep_var = loc.var(0)
+        al_var = (scale**2).mean(0)
+        scale = al_var.add(ep_var).sqrt()
+        loc = loc.mean(axis=0)
 
         nll = F.gaussian_nll_loss(loc, y, torch.square(scale))
-        mse = F.mse_loss(y.squeeze(), loc)
-        rmsce = rms_calibration_error(loc, scale, y.squeeze())
+        mse = F.mse_loss(y, loc)
+        rmsce = rms_calibration_error(loc, scale, y)
         sharp = sharpness(scale)
         self.log("nll/test", nll)
         self.log("mse/test", mse)
         self.log("rmsce/test", rmsce)
         self.log("sharp/test", sharp)
-        return {
-            "loss": nll,
-            "label": batch[1],
-            "pred": loc.squeeze(),
-            "std": scale,
-        }
 
-    def test_epoch_end(self, outputs):
-        for output in outputs:
-            self.test_preds["preds"].extend(
-                list(output["pred"].flatten().cpu().detach().numpy())
-            )
-            self.test_preds["labels"].extend(
-                list(output["label"].cpu().detach().numpy())
-            )
-            self.test_preds["stds"].extend(
-                list(output["std"].flatten().cpu().detach().numpy())
-            )
+        self.test_preds["preds"].append(loc.cpu().detach().numpy())
+        self.test_preds["labels"].append(y.cpu().detach().numpy())
+        self.test_preds["stds"].append(scale.cpu().detach().numpy())
+        self.test_preds["ep_vars"].append(ep_var.cpu().detach().numpy())
+        self.test_preds["al_vars"].append(al_var.cpu().detach().numpy())
 
     def configure_optimizers(self):
         return None

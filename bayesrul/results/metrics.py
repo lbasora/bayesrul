@@ -15,7 +15,7 @@ def model_metrics(
 ) -> pd.DataFrame:
     df_model = (
         df_preds.groupby(["method", "model"])
-        .apply(metrics)
+        .apply(compute_metrics)
         .apply(pd.Series)
         .reset_index()
     )
@@ -27,7 +27,7 @@ def model_metrics(
         ]
         df_model = (
             df_preds.groupby(["method", "model"])
-            .apply(metrics)
+            .apply(compute_metrics)
             .apply(pd.Series)
             .reset_index()
         )
@@ -47,7 +47,7 @@ def ds_metrics(
 ) -> pd.DataFrame:
     df_ds = (
         df_preds.groupby(["dataset", "model"])
-        .apply(metrics)
+        .apply(compute_metrics)
         .apply(pd.Series)
         .reset_index()[["dataset", "model"] + metrics]
     )
@@ -59,12 +59,14 @@ def ds_metrics(
         df_ds = df_ds.sort_values("nll_mean")
     return df_ds
 
+
 def ds_unit(
     df_preds: pd.DataFrame, metrics: List[str], agg: Optional[bool] = False
 ) -> pd.DataFrame:
+    pass
 
 
-def metrics(df: pd.DataFrame) -> Dict[str, float]:
+def compute_metrics(df: pd.DataFrame) -> Dict[str, float]:
     metrics = dict()
     y_true = torch.tensor(df["labels"].values, device=torch.device("cuda:0"))
     y_pred = torch.tensor(df["preds"].values, device=torch.device("cuda:0"))
