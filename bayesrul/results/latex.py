@@ -9,10 +9,9 @@ def df_to_latex(
     dir: str,
     save_as: str,
     highlight_min: bool = True,
-    pdf: bool = True,
 ) -> None:
+
     filename = f"{dir}/{save_as}.tex"
-    pdffile = f"{save_as}.pdf"
     template = r"""\documentclass[preview]{{standalone}}
     \usepackage{{booktabs}}
     \begin{{document}}

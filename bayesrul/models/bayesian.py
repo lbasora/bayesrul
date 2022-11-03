@@ -230,11 +230,13 @@ class BNN(pl.LightningModule):
         self.log("rmsce/test", rmsce)
         self.log("sharp/test", sharp)
 
-        self.test_preds["preds"].append(loc.cpu().detach().numpy())
-        self.test_preds["labels"].append(y.cpu().detach().numpy())
-        self.test_preds["stds"].append(scale.cpu().detach().numpy())
-        self.test_preds["ep_vars"].append(ep_var.cpu().detach().numpy())
-        self.test_preds["al_vars"].append(al_var.cpu().detach().numpy())
+        self.test_preds["preds"].extend(loc.cpu().detach().numpy())
+        self.test_preds["labels"].extend(y.cpu().detach().numpy())
+        self.test_preds["stds"].extend(scale.cpu().detach().numpy())
+        self.test_preds["ep_vars"].extend(ep_var.cpu().detach().numpy())
+        self.test_preds["al_vars"].extend(al_var.cpu().detach().numpy())
+
+        return nll
 
     def configure_optimizers(self):
         return None

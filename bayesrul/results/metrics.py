@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 from torch import Tensor
@@ -10,60 +10,69 @@ import pandas as pd
 from ..utils.miscellaneous import assert_same_shapes
 
 
-def model_metrics(
-    df_preds: pd.DataFrame, metrics: List[str], top: Optional[int] = None
-) -> pd.DataFrame:
-    df_model = (
-        df_preds.groupby(["method", "model"])
-        .apply(compute_metrics)
-        .apply(pd.Series)
-        .reset_index()
-    )
-    if top is not None:
-        df_preds = df_preds[
-            df_preds.model.isin(
-                df_model.sort_values("nll").groupby("method").head(top).model
-            )
-        ]
-        df_model = (
-            df_preds.groupby(["method", "model"])
+class Metrics:
+    def __init__(
+        self,
+        df_preds: pd.DataFrame,
+        metrics: List[str],
+        methods: List[str],
+        top: Optional[int] = None,
+    ):
+        self.df_preds = df_preds
+        self.metrics = metrics
+        self.methods = methods
+        df = self._metrics_by(["method", "model"])
+        if top is not None:
+            self.df_preds = df_preds[
+                df_preds.model.isin(
+                    df.sort_values("nll").groupby("method").head(top).model
+                )
+            ]
+
+    def _metrics_by(self, by: List[str]) -> pd.DataFrame:
+        return (
+            self.df_preds.groupby(by)
             .apply(compute_metrics)
             .apply(pd.Series)
             .reset_index()
+        )[by + self.metrics]
+
+    def _metrics_agg(
+        self, df: pd.DataFrame, agg: Union[str, List[str]]
+    ) -> pd.DataFrame:
+        df = df.groupby(agg).agg(
+            dict((metric, ["mean", "std"]) for metric in self.metrics)
         )
-    return df_model[["method", "model"] + metrics]
+        df.columns = ["_".join(a) for a in df.columns.to_flat_index()]
+        return df.sort_values("nll_mean")
 
+    def by_method(self, agg: bool = False) -> pd.DataFrame:
+        df = self._metrics_by(["method", "model"])
+        if agg:
+            return self._metrics_agg(df, "method").loc[self.methods]
+        return df
 
-def method_metrics(df_model: pd.DataFrame, metrics: List[str]) -> pd.DataFrame:
-    df_method = df_model.groupby("method").agg(
-        dict((metric, ["mean", "std"]) for metric in metrics)
-    )
-    df_method.columns = ["_".join(a) for a in df_method.columns.to_flat_index()]
-    return df_method.sort_values("nll_mean")
+    def by_dataset(self, agg: bool = False) -> pd.DataFrame:
+        df = self._metrics_by(["dataset", "model"])
+        if agg:
+            return self._metrics_agg(df, "dataset")
+        return df
 
+    def by_unit(self, agg: bool = False) -> pd.DataFrame:
+        df = self._metrics_by(["unit", "model"])
+        if agg:
+            return self._metrics_agg(df, "unit")
+        return df
 
-def ds_metrics(
-    df_preds: pd.DataFrame, metrics: List[str], agg: Optional[bool] = False
-) -> pd.DataFrame:
-    df_ds = (
-        df_preds.groupby(["dataset", "model"])
-        .apply(compute_metrics)
-        .apply(pd.Series)
-        .reset_index()[["dataset", "model"] + metrics]
-    )
-    if agg:
-        df_ds = df_ds.groupby("dataset").agg(
-            dict((metric, ["mean", "std"]) for metric in metrics)
-        )
-        df_ds.columns = ["_".join(a) for a in df_ds.columns.to_flat_index()]
-        df_ds = df_ds.sort_values("nll_mean")
-    return df_ds
+    def by_unit_method(self, agg: bool = False) -> pd.DataFrame:
+        df = self._metrics_by(["method", "model", "unit"])
+        if agg:
+            return self._metrics_agg(df, ["method", "unit"])
+        return df
 
-
-def ds_unit(
-    df_preds: pd.DataFrame, metrics: List[str], agg: Optional[bool] = False
-) -> pd.DataFrame:
-    pass
+    def by_best_model(self, metric: str = "nll") -> pd.DataFrame:
+        df = self.by_method()
+        return df.loc[df.reset_index().groupby("method")[metric].idxmin()]
 
 
 def compute_metrics(df: pd.DataFrame) -> Dict[str, float]:

@@ -25,11 +25,6 @@ class HNN(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters(logger=False, ignore=["net"])
         self.net = net
-        self.test_preds = {
-            "preds": [],
-            "labels": [],
-            "stds": [],
-        }
         self.net.apply(weights_init)
 
     def forward(self, x):
@@ -62,7 +57,7 @@ class HNN(pl.LightningModule):
         self.log("sharp/train", sharp, on_step=False, on_epoch=True)
         return loss
 
-    def mc_sampling(self, batch, mc_samples: int, phase: str):
+    def mc_sampling(self, batch, mc_samples: int, phase: str, agg: bool = True):
         losses = []
         locs = []
         scales = []
@@ -74,9 +69,11 @@ class HNN(pl.LightningModule):
         loss = torch.stack(losses).mean(0)
         locs = torch.stack(locs)
         scales = torch.stack(scales)
-        scale = scales.pow(2).mean(0).add(locs.var(0)).sqrt()
-        loc = locs.mean(0)
-        return loss, loc, scale
+        if agg:
+            scale = scales.pow(2).mean(0).add(locs.var(0)).sqrt()
+            loc = locs.mean(0)
+            return loss, loc, scale
+        return loss, locs, scales
 
     def validation_step(self, batch, batch_idx):
         phase = "val"
@@ -107,36 +104,42 @@ class HNN(pl.LightningModule):
         self.log("rmsce/val", rmsce)
         self.log("sharp/val", sharp)
 
+    def on_test_start(self) -> None:
+        self.test_preds = {
+            "preds": [],
+            "labels": [],
+            "stds": [],
+        }
+        if self.net.dropout > 0:
+            self.test_preds["ep_vars"] = []
+            self.test_preds["al_vars"] = []
+
     def test_step(self, batch, batch_idx):
+        y = batch[1]
         phase = "test"
         if self.net.dropout > 0:
             enable_dropout(self.net)
-            loss, loc, scale = self.mc_sampling(
-                batch, self.hparams.mc_samples, phase=phase
+            loss, locs, scales = self.mc_sampling(
+                batch, self.hparams.mc_samples, phase=phase, agg=False
             )
+            ep_var = locs.var(0)
+            al_var = (scales**2).mean(0)
+            scale = al_var.add(ep_var).sqrt()
+            loc = locs.mean(axis=0)
         else:
             loss, loc, scale = self.step(batch, phase)
-        return {"loss": loss, "label": batch[1], "pred": loc, "std": scale}
 
-    def test_epoch_end(self, outputs):
-        for i, output in enumerate(outputs):
-            if i == 0:
-                preds = output["pred"].detach()
-                labels = output["label"].detach()
-                stds = output["std"].detach()
-            else:
-                preds = torch.cat([preds, output["pred"].detach()])
-                labels = torch.cat([labels, output["label"].detach()])
-                stds = torch.cat([stds, output["std"].detach()])
-        self.test_preds["preds"] = preds.cpu().numpy()
-        self.test_preds["labels"] = labels.cpu().numpy()
-        self.test_preds["stds"] = stds.cpu().numpy()
-        self.log("mse/test", F.mse_loss(preds, labels))
-        self.log(
-            "nll/test", F.gaussian_nll_loss(preds, labels, torch.square(stds))
-        )
-        self.log("rmsce/test", rms_calibration_error(preds, stds, labels))
-        self.log("sharp/test", sharpness(stds))
+        self.log("nll/test", loss)
+        self.log("mse/test", F.mse_loss(loc, y))
+        self.log("rmsce/test", rms_calibration_error(loc, scale, y))
+        self.log("sharp/test", sharpness(scale))
+
+        self.test_preds["preds"].extend(loc.cpu().detach().numpy())
+        self.test_preds["labels"].extend(y.cpu().detach().numpy())
+        self.test_preds["stds"].extend(scale.cpu().detach().numpy())
+        if self.net.dropout > 0:
+            self.test_preds["ep_vars"].extend(ep_var.cpu().detach().numpy())
+            self.test_preds["al_vars"].extend(al_var.cpu().detach().numpy())
 
     def configure_optimizers(self):
         return self.hparams.optimizer(params=self.parameters())

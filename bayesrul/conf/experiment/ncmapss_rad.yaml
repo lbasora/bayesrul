@@ -17,15 +17,15 @@ trainer:
 model:
   optimizer:
     _args_:
-      - { lr: 0.000547, betas: [0.95, 0.999], clip_norm: 15 }
-  prior_scale: 0.179030
-  q_scale: 0.003197
-  pretrain_epochs: 0
-  mc_samples_train: 2
+      - { lr: 0.000956, betas: [0.95, 0.999], clip_norm: 15 }
+  prior_scale: 0.092516
+  q_scale: 0.001241
+  pretrain_epochs: 5
+  mc_samples_train: 1
   mc_samples_eval: 20
 
 datamodule:
-  batch_size: 250
+  batch_size: 100
 
 callbacks:
   model_checkpoint:

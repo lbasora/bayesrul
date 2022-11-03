@@ -5,15 +5,14 @@ defaults:
   - paths: default
   - hydra: default
 
-task_name: figs
+task_name: metrics
 tags: ["dev"]
 dataset: ncmapss
 runs_dir: ${paths.results_dir}/${dataset}/runs
 cache_dir: ${paths.results_dir}/${dataset}/cache
-figs_dir: ${paths.results_dir}/${dataset}/figs
+metrics_dir: ${paths.results_dir}/${dataset}/metrics
 methods: ["LRT", "FO", "RAD", "MCD", "DE", "HNN"]
-de_base_learners: ["HNN", "FO"]
+de_base_learners: ["HNN"]
 metrics: ["mae", "rmse", "nll", "rmsce", "sharp"]
-csv_tables: true
+rul_units: ["D4U07", "D5U08"]
 latex: true
-latex_pdf: true

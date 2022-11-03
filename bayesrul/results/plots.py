@@ -1,4 +1,5 @@
 from typing import List, Optional, Dict
+from matplotlib.axes import Axes
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -125,7 +126,9 @@ def paired_column_facets(
     return g
 
 
-def plot_unit_method_std_err(df, methods, save_as):
+def plot_unit_method_std_err(
+    df: pd.DataFrame, methods: List[str], save_as: Optional[str] = None
+) -> sns.FacetGrid:
     g = (
         paired_column_facets(
             df.query(f"method in {methods}"),
@@ -155,5 +158,127 @@ def plot_unit_method_std_err(df, methods, save_as):
     leg.set_title("")
     plt.setp(leg.get_texts(), fontsize="18")
     g.tight_layout()
-    g.savefig(f"figs/{save_as}.pdf")
+    g.savefig(save_as)
     return g
+
+
+def plot_rul(
+    df: pd.DataFrame,
+    methods: List[str],
+    units: List[str],
+    save_as: Optional[str] = None,
+) -> sns.FacetGrid:
+    g = sns.FacetGrid(
+        df.query(f"method in {methods} and unit in {units}"),
+        row="unit",
+        col="method",
+        col_order=methods,
+        margin_titles=True,
+    )
+    g.map(
+        plt.plot,
+        "relative_time",
+        "labels_smooth",
+        color="black",
+        label="True RUL",
+        lw=2,
+    )
+    g.map(
+        plt.plot, "relative_time", "preds_smooth", label="Predicted RUL", lw=2
+    )
+    g = g.map(
+        plt.fill_between,
+        "relative_time",
+        "preds_plus_smooth",
+        "preds_minus_smooth",
+        alpha=0.2,
+        label="95% CI",
+    )
+    g.set_axis_labels("Relative Lifetime [-]", "RUL [cycles]")
+    g.set(ylim=(0, 90))
+    g.add_legend(loc="upper right", bbox_to_anchor=(0.94, 0.99))
+    sns.move_legend(
+        g,
+        "upper center",
+        bbox_to_anchor=(0.45, 1.05),
+        ncol=3,
+        # frameon=True,
+        # markerscale=10,
+    )
+    g.set_titles(row_template="{row_name}", col_template="{col_name}", size=12)
+    # plt.setp(g._legend.get_texts(), fontsize="12")
+    g.tight_layout()
+    g.savefig(save_as)
+    return g
+
+
+def plot_eps_al_uncertainty(
+    df: pd.DataFrame,
+    methods: List[str],
+    units: List[str],
+    save_as: Optional[str] = None,
+) -> sns.relplot:
+    g = (
+        sns.relplot(
+            data=df.query(f"method in {methods} and unit in {units}").melt(
+                id_vars=["method", "unit", "relative_time"],
+                value_vars=[
+                    "stds_smooth",
+                    "ep_stds_smooth",
+                    "al_stds_smooth",
+                ],
+            ),
+            kind="line",
+            x="relative_time",
+            y="value",
+            hue="variable",
+            row="unit",
+            col="method",
+            col_order=methods,
+            facet_kws=dict(sharey="row", margin_titles=True),
+            linewidth=3,
+        )
+        .set_axis_labels("Relative Lifetime [-]", "RUL [cycles]")
+        .set_titles(
+            row_template="{row_name}", col_template="{col_name}", size=18
+        )
+    )
+    for (row_name, _), ax in g.axes_dict.items():
+        ax.set_ylabel("Uncertainty RUL (Std) [cycles]")
+        ax.set_xlabel("Relative Lifetime")
+    sns.move_legend(
+        g,
+        "upper center",
+        bbox_to_anchor=(0.45, 1.05),
+        ncol=3,
+    )
+    leg = g._legend
+    leg.set_title("")
+    new_labels = [
+        "Total uncertainty (std)",
+        "Epistemic uncertainty (std)",
+        "Aleatoric uncertainty (std)",
+    ]
+    for t, l in zip(leg.texts, new_labels):
+        t.set_text(l)
+    plt.setp(leg.get_texts(), fontsize="18")
+    g.tight_layout()
+    g.savefig(save_as)
+    return g
+
+
+def plot_calibration(
+    df: pd.DataFrame,
+    methods: List[str],
+    save_as: Optional[str] = None,
+) -> List[Axes]:
+    _, axs = plt.subplots(2, 3, figsize=(15, 10), constrained_layout=True)
+    for i, method in enumerate(methods):
+        pred_mean, pred_std, y = df.query(f"method=='{method}'")[
+            ["preds", "stds", "labels"]
+        ].T.to_numpy()
+        ax = axs[i // 3, i % 3]
+        uct.plot_calibration(pred_mean, pred_std, y, ax=ax)  # , n_subset=5000)
+        ax.set_title(f"{method}", size=13)
+    plt.savefig(save_as)
+    return axs
