@@ -12,7 +12,14 @@ runs_dir: ${paths.results_dir}/${dataset}/runs
 cache_dir: ${paths.results_dir}/${dataset}/cache
 metrics_dir: ${paths.results_dir}/${dataset}/metrics
 methods: ["LRT", "FO", "RAD", "MCD", "DE", "HNN"]
-de_base_learners: ["HNN"]
+ep_al_methods: ["LRT", "FO", "RAD", "MCD"]
 metrics: ["mae", "rmse", "nll", "rmsce", "sharp"]
 rul_units: ["D4U07", "D5U08"]
 latex: true
+top: 5 # top N models only per method
+deepens: # deep ensemble
+  {
+    base_learners: ["HNN"], # base learners
+    n_models_per_ens: 5, # number of models in a deepens
+    max_deepens: 5, # number of generated deepens
+  }

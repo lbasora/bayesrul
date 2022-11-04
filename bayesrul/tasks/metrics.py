@@ -31,12 +31,12 @@ def main(cfg: DictConfig) -> None:
     log.info("Computing metrics ...")
     df_preds = load_predictions(
         cfg.methods,
-        cfg.de_base_learners,
+        cfg.deepens,
         f"{cfg.paths.data_dir}/{cfg.dataset}",
         cfg.runs_dir,
         cfg.cache_dir,
     )
-    metrics = Metrics(df_preds, cfg.metrics, cfg.methods, top=5)
+    metrics = Metrics(df_preds, cfg.metrics, cfg.methods, top=cfg.top)
     df_best_model = metrics.by_best_model(metric="nll")
     df_preds_best = smooth_cols(df_preds, df_best_model, cfg.cache_dir)
     metrics_dict = dict()
@@ -85,7 +85,7 @@ def main(cfg: DictConfig) -> None:
     )
     plot_eps_al_uncertainty(
         df_preds_best,
-        cfg.methods,
+        cfg.ep_al_methods,
         cfg.rul_units,
         f"{path}/eps_al_uq.pdf",
     )

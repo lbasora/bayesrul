@@ -282,3 +282,40 @@ def plot_calibration(
         ax.set_title(f"{method}", size=13)
     plt.savefig(save_as)
     return axs
+
+
+def plot_loss(
+    df: pd.DataFrame,
+    tags: List[str],
+    xticks=None,
+    log=True,
+):
+    g = (
+        sns.relplot(
+            data=df,
+            x="epoch",
+            y="value",
+            hue="method",
+            col="tag",
+            # col_wrap=2,
+            kind="line",
+            col_order=tags,
+            height=3,
+            aspect=0.9,
+            facet_kws=dict(sharey=False),
+        )
+        .set_titles(row_template="", col_template="{col_name}", size=12)
+        .set(ylabel=None, xticks=xticks)
+    )
+    if log:
+        g.set(yscale="log")
+    sns.move_legend(
+        g,
+        "upper center",
+        bbox_to_anchor=(0.45, 1.02),
+        ncol=3,
+    )
+    leg = g._legend
+    leg.set_title("")
+    plt.setp(leg.get_texts(), fontsize="12")
+    return g

@@ -2,11 +2,13 @@ import logging
 from pathlib import Path
 from typing import List
 
+from omegaconf import DictConfig
+
 import numpy as np
 import pandas as pd
 
 from ..data.ncmapss.post_process import post_process, smooth_some_columns
-from ..models.deepens import deep_ensemble
+from ..models.deepens import deep_ensemble_gen
 from ..utils.miscellaneous import ResultSaver
 
 log = logging.getLogger(__name__)
@@ -14,7 +16,7 @@ log = logging.getLogger(__name__)
 
 def load_predictions(
     methods: List[str],
-    de_base_learners: List[str],
+    deepens: DictConfig,
     data_dir: str,
     runs_dir: str,
     cache_dir: str,
@@ -38,16 +40,25 @@ def load_predictions(
                 cumul.append(df)
 
     log.info(
-        f"Aggregating deep ensemble predictions for base learners {de_base_learners} ..."
+        f"Aggregating deep ensemble predictions for base learners {deepens.base_learners} ..."
     )
     df = pd.concat(cumul).reset_index(drop=True)
-    cumul = []
-    for base_learner in de_base_learners:
-        de_df = deep_ensemble(df.query(f"method=='{base_learner}'"))
-        de_df = post_process(de_df, data_path=data_dir, sigma=1.96).assign(
-            method="DE", model=f"DE_{base_learner}"
+    # cumul = []
+    # for base_learner in de_base_learners:
+    #     de_df = deep_ensemble(df.query(f"method=='{base_learner}'"))
+    #     de_df = post_process(de_df, data_path=data_dir, sigma=1.96).assign(
+    #         method="DE", model=f"DE_{base_learner}"
+    #     )
+    #     cumul.append(de_df)
+    cumul = [
+        post_process(de_df, data_path=data_dir, sigma=1.96)
+        for de_df in deep_ensemble_gen(
+            df,
+            deepens.base_learners,
+            deepens.n_models_per_ens,
+            deepens.max_deepens,
         )
-        cumul.append(de_df)
+    ]
 
     df = (
         pd.concat([df] + cumul)
