@@ -1,12 +1,15 @@
 # Bayesrul
 
-TODO
+This is a library for the benchmark of some uncertainty quantification methods (UQ) for deep learning (DL) in the context of the Remaining Useful Life (RUL) prognostics. We experiment with deterministic heteroscedastic neural networks (HNN), deep ensembles (DE), Monte Carlo dropout (MCD) and several Bayesian Neural Networks (BNN) techniques for variance reduction such as local reparametrization trick (LRT), Flipout (FO) and Radial Bayesian networks (RAD).
 
-<!-- ## Setup 
+The dataset we use for the benchmark (N-CMAPSS) needs to be downloaded from the NASA prognostics website. Three deep neural networks are implemented with pytorch and pytorch-lightning and turned into BNN with pyro and TyXe. Hyperparameter search is implemented with Optuna. The library computes negative log-likelihood (NLL), root mean squared error (RMSE), root mean sqaured calibration error (RMSCE) and sharpness to evaluate aspects such model accuracy and quality of predictive uncertainty estimation. Plots and csv files are generated for analysis.
+
+The library uses poetry for dependency management and hydra for configuration management. 
+## Setup 
 
 Clone the repository
 ```
-git clone git@github.com:arthurviens/bayesrul.git
+git clone git@github.com:lbasora/bayesrul.git
 cd bayesrul
 ```
 
@@ -14,49 +17,38 @@ Use poetry to install dependencies
 ```
 poetry install
 ```
-
-## Generate dataset lmdb files for N-CMAPSS
-Make sure to have the CMAPSS dataset files at `data/ncmapss/N-CMAPSS_DS02-006.h5` (you can use other subsets by modifying arguments in `bayesful/ncmapss/generate_files.py`)
-
-Launch the script
+## Using the library
+The library uses hydra library and the conf files are in `bayesruls/conf/`
+#### Generate dataset lmdb files for N-CMAPSS
+Make sure to have the downloaded N-CMAPSS files from NASA at `data/ncmapss/`
 ```
-poetry run python -m bayesrul.ncmapss.generate_files
+poetry run python -m bayesrul.tasks.build_ds
 ```
-It will create the necessary parquet and lmdb files used later on. Parquet files are used to create lmdb files but are useless otherwise for now.
+You can overload the options in the conf file  `bayesruls/conf/build_ds.yaml`
 
-You now should have `data/ncmapss/lmdb` directory, with all that is needed inside.
-
-
-## Train a model
-
-You can now launch a training (for example a BNN) 
+#### Hyperparameter search
+Example with a HNN:
 ```
-poetry run python -m bayesrul.ncmapss.train_model --bayesian --archi inception --guide normal --GPU 0 --model-name My_Model 
+poetry run python -m bayesrul.tasks.hpsearch hpsearch=ncmapss_hnn task_name=hps_hnn
 ```
 
-Or a frequentist model by removing `--bayesian`
-```
-poetry run python -m bayesrul.ncmapss.train_model --archi inception --GPU 0 --model-name My_Model 
-```
-
-
-Or only launch the model on test set if it has already been trained
+#### Model training and test
 
 ```
-poetry run python -m bayesrul.ncmapss.train_model --bayesian --GPU 0 --model-name My_Model --test 
+poetry run python -m bayesrul.tasks.train experiment=ncmapss_hnn task_name=train_hnn
 ```
 
-## Launch Optuna searches
+For instance, if you want to execute 5 runs of the HNN model with different seeds by exploiting hydra multirun facility:
 
-It's possible to launch a hyperparameter search for LRT on GPU 0
 ```
-poetry run python -m bayesrul.ncmapss.optimize_single --model lrt --study-name LRT --sampler TPE --GPU 0 
+poetry run python -m bayesrul.tasks.train experiment=ncmapss_hnn seed=1,2,3,4,5 task_name=train_hnn --multirun
 ```
 
-In a JSON you can save the best parameter the search tried in the directory and file:
-` results/ncmapss/best_models/LRT/000.json `
-
-With such adictionary of parameters, it is possible to launch a training with these best found parameters. It will read the file and initialize a model accordingly before training.
+#### Model evaluation
 ```
-poetry run python -m bayesrul.ncmapss.train_best_models --model LRT --GPU 0
-``` -->
+poetry run python -m bayesrul.tasks.metrics
+```
+
+## References
+TODO
+
