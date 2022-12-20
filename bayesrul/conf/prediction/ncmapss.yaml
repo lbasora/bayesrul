@@ -1,0 +1,13 @@
+# @package _global_
+
+defaults:
+  - _self_
+  - /datamodule: ncmapss
+  - /model@HNN: hnn
+  - /model@MCD: mcd
+  - /model@LRT: bnn_lrt
+  - /model@FO: bnn_fo
+  - /model@RAD: bnn_rad
+
+dataset: ncmapss
+runs_dir: ${paths.results_dir}/${dataset}/runs

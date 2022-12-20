@@ -18,66 +18,64 @@ def load_predictions(
     methods: List[str],
     deepens: DictConfig,
     data_dir: str,
-    runs_dir: str,
+    preds_dir: str,
     cache_dir: str,
+    subset: str,
 ) -> pd.DataFrame:
 
     path = f"{cache_dir}/predictions.parquet"
     if Path(path).exists():
         return pd.read_parquet(path)
 
-    log.info(f"Loading predictions from {runs_dir} ...")
+    log.info(f"Post-processing predictions from {preds_dir} ...")
     cumul = []
     for method in methods:
-        for p in Path(runs_dir).glob(f"{method}/*"):
-            if p.joinpath(f"{p}/predictions/results.parquet").exists():
-                model = f"{method}_{int(p.stem):03d}"
-                log.info(f"Loading predictions for model {model} ...")
-                sav = ResultSaver(p)
-                df = post_process(
-                    sav.load(), data_path=data_dir, sigma=1.96
-                ).assign(model=model, method=method)
-                cumul.append(df)
+        for p in Path(preds_dir).glob(f"{method}*{subset}*"):
+            model = "_".join(p.as_posix().split("/")[-1].split("_")[:2])
+            log.info(f"Loading predictions for model {model} ...")
+            sav = ResultSaver(p.parent, p.name)
+            df = post_process(
+                sav.load(), subset, data_path=data_dir, sigma=1.96
+            ).assign(model=model, method=method)
+            cumul.append(df)
 
-    log.info(
-        f"Aggregating deep ensemble predictions for base learners {deepens.base_learners} ..."
-    )
-    df = pd.concat(cumul).reset_index(drop=True)
-    # cumul = []
-    # for base_learner in de_base_learners:
-    #     de_df = deep_ensemble(df.query(f"method=='{base_learner}'"))
-    #     de_df = post_process(de_df, data_path=data_dir, sigma=1.96).assign(
-    #         method="DE", model=f"DE_{base_learner}"
-    #     )
-    #     cumul.append(de_df)
-    cumul = [
-        post_process(de_df, data_path=data_dir, sigma=1.96)
-        for de_df in deep_ensemble_gen(
-            df,
-            deepens.base_learners,
-            deepens.n_models_per_ens,
-            deepens.max_deepens,
+    if deepens:
+        log.info(
+            f"Aggregating deep ensemble predictions for base learners {deepens.base_learners} ..."
         )
-    ]
+        df = pd.concat(cumul).reset_index(drop=True)
+        cumul = [
+            post_process(de_df, subset, data_path=data_dir, sigma=1.96)
+            for de_df in deep_ensemble_gen(
+                df,
+                deepens.base_learners,
+                deepens.n_models_per_ens,
+                deepens.max_deepens,
+            )
+        ]
 
     df = (
         pd.concat([df] + cumul)
         .reset_index(drop=True)
         .assign(
             errs=lambda x: x.preds - x.labels,
-            ep_stds=np.sqrt(df.ep_vars),
-            al_stds=np.sqrt(df.al_vars),
             dataset=lambda x: "D" + x.ds_id.astype(str),
             unit=lambda x: x.dataset + "U" + x.unit_id.map("{:02d}".format),
         )
     )
+    df = df.merge(
+        pd.read_csv(f"{data_dir}/fc.csv"), on=["ds_id", "unit_id"], how="left"
+    )
+
     Path(cache_dir).mkdir(exist_ok=True)
     df.to_parquet(f"{cache_dir}/predictions.parquet")
     return df
 
 
 def smooth_cols(
-    df_preds: pd.DataFrame, df_best_models: pd.DataFrame, cache_dir: str
+    df_preds: pd.DataFrame,
+    df_best_models: pd.DataFrame,
+    cache_dir: str,
 ) -> pd.DataFrame:
 
     path = f"{cache_dir}/predictions_best.parquet"

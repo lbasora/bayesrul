@@ -86,6 +86,22 @@ class NCMAPSSDataModule(pl.LightningDataModule):
             generator=torch.Generator().manual_seed(0),
         )
 
+    def set_predict_dataset(self, name: str) -> None:
+        if name in self.datasets:
+            self.datasets["predict"] = self.datasets[name]
+        else:
+            self.datasets["predict"] = (
+                NCMAPSSLmdbDatasetAll(
+                    f"{self.data_path}/lmdb/{name}.lmdb",
+                    "{}",
+                )
+                if self.all_dset
+                else NCMAPSSLmdbDataset(
+                    f"{self.data_path}/lmdb/{name}.lmdb",
+                    "{}",
+                )
+            )
+
     def train_dataloader(self) -> DataLoader:
         return DataLoader(
             self.datasets["train"],
@@ -109,6 +125,15 @@ class NCMAPSSDataModule(pl.LightningDataModule):
             self.datasets["test"],
             batch_size=self.test_batch_size,
             shuffle=False,  # Important. do NOT shuffle or results will be false
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory,
+        )
+
+    def predict_dataloader(self) -> DataLoader:
+        return DataLoader(
+            self.datasets["predict"],
+            batch_size=self.test_batch_size,
+            shuffle=False,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
         )

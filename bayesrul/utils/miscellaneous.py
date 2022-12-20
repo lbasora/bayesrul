@@ -10,10 +10,9 @@ from typing import Union, List, Dict
 
 
 class ResultSaver:
-    def __init__(self, path: Union[Path, str], filename: str = None) -> None:
-        self.path = Path(path, "predictions")
+    def __init__(self, path: Union[Path, str], filename: str) -> None:
+        self.path = Path(path)
         self.path.mkdir(exist_ok=True)
-        filename = "results.parquet" if filename is None else filename
         self.file_path = Path(self.path, filename)
 
     def save(self, df: pd.DataFrame) -> None:

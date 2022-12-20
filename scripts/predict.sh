@@ -1,0 +1,2 @@
+poetry run python -m bayesrul.tasks.predict task_name=predict ckpt_path=all
+#poetry run python -m bayesrul.tasks.predict task_name=predict_hnn ckpt_path=/home/luis/repos/bayesrul/results/ncmapss/runs/HNN/0/checkpoints/epoch_326-step_311631.ckpt #-c job

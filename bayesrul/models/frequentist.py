@@ -34,15 +34,15 @@ class HNN(pl.LightningModule):
         return next(self.net.parameters()).device
 
     def to_device(self, device: torch.device):
-        # print(f"Device before to {self.get_device()}")
         self.net.to(device)
-        # print(f"Device After to {self.get_device()}")
 
     def step(self, batch, phase):
         (x, y) = batch
         output = self.net(x)
         loc = output[:, 0]
         scale = output[:, 1]
+        if phase == "predict":
+            return loc, scale
         loss = F.gaussian_nll_loss(loc, y, torch.square(scale))
         self.log(f"nll/{phase}", loss, on_step=False, on_epoch=True)
         return loss, loc, scale
@@ -62,13 +62,18 @@ class HNN(pl.LightningModule):
         locs = []
         scales = []
         for _ in range(mc_samples):
-            loss, loc, scale = self.step(batch, phase)
-            losses.append(loss)
+            if phase == "predict":
+                loc, scale = self.step(batch, phase)
+            else:
+                loss, loc, scale = self.step(batch, phase)
+                losses.append(loss)
             locs.append(loc)
             scales.append(scale)
-        loss = torch.stack(losses).mean(0)
         locs = torch.stack(locs)
         scales = torch.stack(scales)
+        if phase == "predict":
+            return locs, scales
+        loss = torch.stack(losses).mean(0)
         if agg:
             scale = scales.pow(2).mean(0).add(locs.var(0)).sqrt()
             loc = locs.mean(0)
@@ -104,16 +109,6 @@ class HNN(pl.LightningModule):
         self.log("rmsce/val", rmsce)
         self.log("sharp/val", sharp)
 
-    def on_test_start(self) -> None:
-        self.test_preds = {
-            "preds": [],
-            "labels": [],
-            "stds": [],
-        }
-        if self.net.dropout > 0:
-            self.test_preds["ep_vars"] = []
-            self.test_preds["al_vars"] = []
-
     def test_step(self, batch, batch_idx):
         y = batch[1]
         phase = "test"
@@ -134,12 +129,26 @@ class HNN(pl.LightningModule):
         self.log("rmsce/test", rms_calibration_error(loc, scale, y))
         self.log("sharp/test", sharpness(scale))
 
-        self.test_preds["preds"].extend(loc.cpu().detach().numpy())
-        self.test_preds["labels"].extend(y.cpu().detach().numpy())
-        self.test_preds["stds"].extend(scale.cpu().detach().numpy())
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        pred = dict()
+        pred["labels"] = batch[1].cpu().numpy()
+        phase = "predict"
         if self.net.dropout > 0:
-            self.test_preds["ep_vars"].extend(ep_var.cpu().detach().numpy())
-            self.test_preds["al_vars"].extend(al_var.cpu().detach().numpy())
+            enable_dropout(self.net)
+            locs, scales = self.mc_sampling(
+                batch, self.hparams.mc_samples, phase=phase, agg=False
+            )
+            ep_var = locs.var(0)
+            al_var = (scales**2).mean(0)
+            scale = al_var.add(ep_var).sqrt()
+            loc = locs.mean(axis=0)
+            pred["ep_vars"] = ep_var.cpu().numpy()
+            pred["al_vars"] = al_var.cpu().numpy()
+        else:
+            loc, scale = self.step(batch, phase)
+        pred["preds"] = loc.cpu().numpy()
+        pred["stds"] = scale.cpu().numpy()
+        return pred
 
     def configure_optimizers(self):
         return self.hparams.optimizer(params=self.parameters())

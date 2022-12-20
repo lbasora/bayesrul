@@ -197,13 +197,6 @@ class BNN(pl.LightningModule):
         self.log("sharp/val", sharp)
 
     def on_test_start(self) -> None:
-        self.test_preds = {
-            "preds": [],
-            "labels": [],
-            "stds": [],
-            "ep_vars": [],
-            "al_vars": [],
-        }
         self.define_bnn()
         param_store_to(self.device)
 
@@ -229,14 +222,32 @@ class BNN(pl.LightningModule):
         self.log("mse/test", mse)
         self.log("rmsce/test", rmsce)
         self.log("sharp/test", sharp)
-
-        self.test_preds["preds"].extend(loc.cpu().detach().numpy())
-        self.test_preds["labels"].extend(y.cpu().detach().numpy())
-        self.test_preds["stds"].extend(scale.cpu().detach().numpy())
-        self.test_preds["ep_vars"].extend(ep_var.cpu().detach().numpy())
-        self.test_preds["al_vars"].extend(al_var.cpu().detach().numpy())
-
         return nll
+
+    def on_predict_start(self) -> None:
+        self.define_bnn()
+        param_store_to(self.device)
+
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        x = batch[0]
+        pred = dict()
+        pred["labels"] = batch[1].cpu().numpy()
+        output = self.bnn.predict(
+            x,
+            num_predictions=self.hparams.mc_samples_eval,
+            aggregate=False,
+        )
+        loc, scale = output[:, :, 0], output[:, :, 1]
+
+        ep_var = loc.var(0)
+        al_var = (scale**2).mean(0)
+        pred["ep_vars"] = ep_var.cpu().numpy()
+        pred["al_vars"] = al_var.cpu().numpy()
+        scale = al_var.add(ep_var).sqrt()
+        loc = loc.mean(axis=0)
+        pred["preds"] = loc.cpu().numpy()
+        pred["stds"] = scale.cpu().numpy()
+        return pred
 
     def configure_optimizers(self):
         return None

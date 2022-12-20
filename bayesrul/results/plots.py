@@ -1,4 +1,5 @@
-from typing import List, Optional, Dict
+import warnings
+from typing import List, Optional, Dict, Tuple
 from matplotlib.axes import Axes
 
 import matplotlib.pyplot as plt
@@ -12,7 +13,7 @@ sns.set_context("paper")
 sns.despine()
 tex_fonts = {
     "text.usetex": True,
-    "font.family": "serif",
+    "font.family": "Ubuntu",
     "axes.labelsize": 14,
     "font.size": 18,
     "legend.fontsize": 12,
@@ -31,25 +32,25 @@ def plot_metrics(
     aspect: Optional[int] = 1,
     label_rotation: Optional[int] = 0,
 ) -> sns.catplot:
-    g = (
-        sns.catplot(
-            x=x,
-            y="value",
-            hue="variable",
-            data=df.reset_index()
-            .assign(rmsce=lambda x: x.rmsce * 100)
-            .melt(id_vars=x, value_vars=["rmse", "nll", "rmsce", "sharp"]),
-            kind="bar",
-            aspect=aspect,
-        )
-        .set_xticklabels(rotation=label_rotation)
-        .set(xlabel=None, ylabel="", yscale="log", yticklabels=[])
+    g = sns.catplot(
+        x=x,
+        y="value",
+        hue="variable",
+        data=df.reset_index()
+        .assign(rmsce=lambda x: x.rmsce * 50)
+        .melt(id_vars=x, value_vars=["rmse", "nll", "rmsce", "sharp"]),
+        kind="bar",
+        aspect=aspect,
     )
+    g.set(xlabel=None)
+    g.set_xticklabels(rotation=label_rotation)
+    g.set(yticklabels=[])
+    g.set(ylabel=None)
     if legend:
         leg = g._legend
         leg.set_bbox_to_anchor(anchor)
         leg.set_title("")
-        new_labels = ["RMSE", "NLL", "RMSCE*100", "Sharp"]
+        new_labels = ["RMSE", "NLL", "RMSCE*50", "Sharp"]
         for t, l in zip(leg.texts, new_labels):
             t.set_text(l)
     else:
@@ -60,19 +61,68 @@ def plot_metrics(
     return g
 
 
+def plot_fc_method_metrics(
+    df: pd.DataFrame,
+    methods: List[str],
+    save_as: Optional[str] = None,
+    xticklabel_size: int = 15,
+    bbox: Tuple[float, float] = (0.45, 1.04),
+):
+    g = sns.catplot(
+        x="fc",
+        y="value",
+        data=(
+            df.melt(
+                id_vars=["method", "fc"],
+                value_vars=["nll", "rmse", "rmsce", "sharp"],
+            ).assign(
+                variable=lambda x: x.variable.map(
+                    {
+                        "nll": "NLL",
+                        "rmse": "RMSE",
+                        "rmsce": "RMSCE",
+                        "sharp": "SHARP",
+                    }
+                )
+            )
+        ),
+        col="variable",
+        col_wrap=2,
+        hue="method",
+        hue_order=methods,
+        kind="bar",
+        sharey=False,
+        aspect=1,
+    ).set_titles(col_template="{col_name}", size=18)
+    g.set(xlabel=None)
+    g.set_xticklabels(size=xticklabel_size)
+    g.set(xticklabels=[1, 2, 3], yticklabels=[])
+    g.set(ylabel=None)
+    sns.move_legend(
+        g,
+        "upper center",
+        bbox_to_anchor=bbox,
+        ncol=6,
+    )
+    leg = g._legend
+    leg.set_title("")
+    plt.setp(leg.get_texts(), fontsize="18")
+    g.tight_layout()
+    if save_as is not None:
+        g.savefig(save_as)
+    return g
+
+
 def plot_unit_method_metrics(
     df_unit_method: pd.DataFrame,
     save_as: Optional[str] = None,
 ) -> sns.catplot:
-    sns.set_style("white")
-    sns.set_context("paper")
-    sns.despine()
     g = (
         sns.catplot(
             x="unit",
             y="value",
             data=(
-                df_unit_method.assign(rmsce=lambda x: x.rmsce * 100)
+                df_unit_method.assign(rmsce=lambda x: x.rmsce * 50)
                 .melt(
                     id_vars=["method", "unit"],
                     # value_vars=["rmse", "nll", "rmsce", "sharp"],
@@ -175,40 +225,45 @@ def plot_rul(
         col_order=methods,
         margin_titles=True,
     )
-    g.map(
-        plt.plot,
-        "relative_time",
-        "labels_smooth",
-        color="black",
-        label="True RUL",
-        lw=2,
-    )
-    g.map(
-        plt.plot, "relative_time", "preds_smooth", label="Predicted RUL", lw=2
-    )
-    g = g.map(
-        plt.fill_between,
-        "relative_time",
-        "preds_plus_smooth",
-        "preds_minus_smooth",
-        alpha=0.2,
-        label="95% CI",
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter(action="ignore", category=FutureWarning)
+        g.map(
+            plt.plot,
+            "relative_time",
+            "labels_smooth",
+            color="black",
+            label="True RUL",
+            lw=2,
+        )
+        g.map(
+            plt.plot,
+            "relative_time",
+            "preds_smooth",
+            label="Predicted RUL",
+            lw=2,
+        )
+        g = g.map(
+            plt.fill_between,
+            "relative_time",
+            "preds_plus_smooth",
+            "preds_minus_smooth",
+            alpha=0.2,
+            label="95\% CI",
+        )
+    g.set_titles(row_template="{row_name}", col_template="{col_name}", size=18)
     g.set_axis_labels("Relative Lifetime [-]", "RUL [cycles]")
     g.set(ylim=(0, 90))
-    g.add_legend(loc="upper right", bbox_to_anchor=(0.94, 0.99))
+    g.add_legend()
     sns.move_legend(
         g,
         "upper center",
         bbox_to_anchor=(0.45, 1.05),
         ncol=3,
-        # frameon=True,
-        # markerscale=10,
     )
-    g.set_titles(row_template="{row_name}", col_template="{col_name}", size=12)
-    # plt.setp(g._legend.get_texts(), fontsize="12")
+    plt.setp(g._legend.get_texts(), fontsize="15")
     g.tight_layout()
-    g.savefig(save_as)
+    if save_as is not None:
+        g.savefig(save_as)
     return g
 
 

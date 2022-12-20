@@ -36,7 +36,7 @@ def deep_ensemble_gen(
     n_models_per_ens: int,
     max_deepens: int,
 ) -> Iterator[pd.DataFrame]:
-
+    random.seed(1)
     for method in base_learners:
         n = len(df.query(f"method=='{method}'").groupby("model"))
         comb = list(combinations(range(n), n_models_per_ens))

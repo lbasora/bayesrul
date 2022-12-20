@@ -20,6 +20,7 @@ log = logging.getLogger(__name__)
 def build_ds(cfg: DictConfig):
     generate_lmdb(cfg)
     preprocess_lmdb(cfg)
+    generate_fc_table(cfg)
 
 
 def get_features(cfg: DictConfig):
@@ -319,3 +320,28 @@ def process_ds(ds: Dataset, scaler: StandardScalerTransform) -> Iterator[Line]:
             data=scaler(sample),
             rul=rul,
         )
+
+
+def generate_fc_table(cfg: DictConfig):
+    cumul = []
+    for ds in range(5):
+        for subset in ["dev", "test"]:
+            df = (
+                read_hdf5(
+                    Path(f"{cfg.dataset.hdf5_path}/{cfg.dataset.files[ds]}"),
+                    subset,
+                    np.float32,
+                    cfg.dataset.files,
+                    vars=["A"],
+                )[["unit", "Fc"]]
+                .assign(ds=ds + 1)
+                .astype(int)
+                .drop_duplicates()
+            )
+            cumul.append(df)
+    df = (
+        pd.concat(cumul)
+        .reset_index(drop=True)[["ds", "unit", "Fc"]]
+        .rename(columns={"ds": "ds_id", "unit": "unit_id", "Fc": "fc"})
+    )
+    df.to_csv(f"{cfg.paths.output_dir}/fc.csv", index=False)

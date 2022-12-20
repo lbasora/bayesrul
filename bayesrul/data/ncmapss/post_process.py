@@ -102,13 +102,20 @@ def addFlightHours(
     return df
 
 
-def addTestFlightInfo(df: pd.DataFrame, path: str = "data/ncmapss/"):
+def addTestFlightInfo(
+    df: pd.DataFrame,
+    subset: str,
+    path: str = "data/ncmapss/",
+):
     """Adds flight info to the test results
 
     Parameters
     ----------
     df : pd.DataFrame
         Dataframe of results (test preds, labels...)
+
+    subset: str
+        Which data subset to use: train, val or test subsets
 
     path : str
         where to find the dataset lmdbs to retrieve test set
@@ -122,7 +129,8 @@ def addTestFlightInfo(df: pd.DataFrame, path: str = "data/ncmapss/"):
         When column adds fail (NaNs were introduced)
     """
     data = NCMAPSSDataModule(path, 5000, all_dset=True)
-    loader = data.test_dataloader()
+    data.set_predict_dataset(subset)
+    loader = data.predict_dataloader()
 
     ds_id = pd.Series(dtype="object")
     unit_id = pd.Series(dtype="object")
@@ -287,7 +295,7 @@ def get_ds_unit(engine):
 
 
 def post_process(
-    df: pd.DataFrame, data_path="../data/ncmapss", sigma=1.96
+    df: pd.DataFrame, subset: str, data_path="../data/ncmapss", sigma=1.96
 ) -> pd.DataFrame:
     """Post processing of raw saved results, to add test set info, relative lifetime..."""
     assert isinstance(sigma, int) or isinstance(
@@ -298,7 +306,7 @@ def post_process(
     df["preds_minus"] = df["preds"] - sigma * df["stds"]
     df["preds_plus"] = df["preds"] + sigma * df["stds"]
 
-    df = addTestFlightInfo(df, path=data_path)
+    df = addTestFlightInfo(df, subset, path=data_path)
     df = addFlightHours(df, 10, 30, 10)
 
     return df

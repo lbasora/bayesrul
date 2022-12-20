@@ -1,2 +1,3 @@
+#poetry run python -m bayesrul.tasks.hpsearch hpsearch=ncmapss_lrt trainer.devices=[0] +trainer.limit_train_batches=0.01 +trainer.limit_val_batches=1 +trainer.limit_test_batches=0.05 task_name=hps_test hpsearch.study.study_name=hps_test #-c job --resolve
+#poetry run python -m bayesrul.tasks.hpsearch hpsearch=ncmapss_lrt trainer.devices=[0] task_name=hps_lrt model.mc_samples_eval=10 trainer.max_epochs=1 +trainer.limit_train_batches=0.05 +trainer.limit_val_batches=0.05
 poetry run python -m bayesrul.tasks.hpsearch hpsearch=ncmapss_lrt trainer.devices=[0] task_name=hps_lrt #-c job --resolve
-

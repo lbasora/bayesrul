@@ -14,7 +14,6 @@ from pytorch_lightning import (
 from pytorch_lightning.loggers import LightningLoggerBase
 
 from ..models.frequentist import NN
-from ..utils.miscellaneous import ResultSaver
 from .utils import (
     get_pylogger,
     instantiate_callbacks,
@@ -96,9 +95,6 @@ def train(cfg: DictConfig, trial: Optional[optuna.trial.Trial] = None):
                 ckpt_path = None
         trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
         log.info(f"Best ckpt path: {ckpt_path}")
-        log.info(f"Saving predicions: {cfg.paths.output_dir}/predictions/")
-        results = ResultSaver(f"{cfg.paths.output_dir}")
-        results.save(model.test_preds)
 
     test_metrics = trainer.callback_metrics
 

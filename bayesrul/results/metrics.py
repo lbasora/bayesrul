@@ -49,13 +49,19 @@ class Metrics:
     def by_method(self, agg: bool = False) -> pd.DataFrame:
         df = self._metrics_by(["method", "model"])
         if agg:
-            return self._metrics_agg(df, "method").loc[self.methods]
+            return self._metrics_agg(df, "method")  # .loc[self.methods]
         return df
 
     def by_dataset(self, agg: bool = False) -> pd.DataFrame:
         df = self._metrics_by(["dataset", "model"])
         if agg:
             return self._metrics_agg(df, "dataset")
+        return df
+
+    def by_fc(self, agg: bool = False) -> pd.DataFrame:
+        df = self._metrics_by(["fc", "model"])
+        if agg:
+            return self._metrics_agg(df, "fc")
         return df
 
     def by_unit(self, agg: bool = False) -> pd.DataFrame:
