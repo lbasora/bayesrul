@@ -15,6 +15,7 @@ log = logging.getLogger(__name__)
 
 
 def load_predictions(
+    path: str,
     methods: List[str],
     deepens: DictConfig,
     data_dir: str,
@@ -23,7 +24,6 @@ def load_predictions(
     subset: str,
 ) -> pd.DataFrame:
 
-    path = f"{cache_dir}/predictions.parquet"
     if Path(path).exists():
         return pd.read_parquet(path)
 
@@ -68,7 +68,7 @@ def load_predictions(
     )
 
     Path(cache_dir).mkdir(exist_ok=True)
-    df.to_parquet(f"{cache_dir}/predictions.parquet")
+    df.to_parquet(path)
     return df
 
 

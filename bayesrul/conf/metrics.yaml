@@ -9,21 +9,15 @@ task_name: metrics
 tags: ["dev"]
 dataset: ncmapss
 subset: test
-preds_dir: ${paths.results_dir}/${dataset}/predictions
+preds_dir: ${paths.results_dir}/${dataset}/predictions/${subset}
 cache_dir: ${paths.results_dir}/${dataset}/cache/${subset}
 metrics_dir: ${paths.results_dir}/${dataset}/metrics/${subset}
-methods: ["LRT", "FO", "RAD", "MCD", "DE", "HNN"]
-ep_al_methods: ["LRT", "FO", "RAD", "MCD"]
+methods: ["DE", "MCD", "HNN", "RAD", "LRT", "FO"]
 metrics: ["mae", "rmse", "nll", "rmsce", "sharp"]
-rul_units: ["D4U07", "D5U08"]
 top: 5 # top N models only per method
-smooth_cols: false
-latex: true
-plots: false
-deepens: null
-# deepens: # deep ensemble
-#   {
-#     base_learners: ["HNN"], # base learners
-#     n_models_per_ens: 5, # number of models in a deepens
-#     max_deepens: 5, # number of generated deepens
-#   }
+deepens: # deep ensemble
+  {
+    base_learners: ["HNN"], # base learners
+    n_models_per_ens: 5, # number of models in a deepens
+    max_deepens: 5, # number of generated deepens
+  }
