@@ -171,7 +171,7 @@ df = df.assign(
 # %% [markdown]
 # ### D4 analysis
 # %%
-ood_units = ["D408", "D4U10", "D4U09", "D4U07"]
+ood_units = ["D4U08", "D4U10", "D4U09", "D4U07"]
 df_ood = df.query(f"unit.isin({ood_units})").assign(ood_id="OOD")
 df_id = df.query(f"~unit.isin({ood_units})").assign(ood_id="ID")
 df_ood_id = pd.concat([df_ood, df_id])
@@ -180,7 +180,7 @@ df_ood_id = pd.concat([df_ood, df_id])
 ood_boxplot(
     df_ood_id,
     save_as=f"{path_fig}/entropy_boxplot_d4.pdf",
-    ylim=[0, 5],
+    ylim=[0, 5.5],
     leg_labels=["D4", "Other test units"],
 )
 
@@ -189,7 +189,7 @@ ood_cdfplot(
     compute_cdf(df_ood_id),
     cfg.methods,
     save_as=f"{path_fig}/entropy_cdf_d4.pdf",
-    xlim=[-1, 5],
+    xlim=[-1, 5.5],
     leg_labels=["D4", "Other test units"],
 )
 
@@ -197,7 +197,7 @@ ood_cdfplot(
 # ### OOD units
 
 # %%
-ood_units = ["D310", "D3U11", "D3U13", "D4U07", "D2U11"]
+ood_units = ["D2U11", "D3U10", "D3U11", "D3U13", "D4U07"]
 df_ood = df.query(f"unit.isin({ood_units})").assign(ood_id="OOD")
 df_id = df.query(
     f"~unit.str.startswith('D4') and ~unit.isin({ood_units})"
@@ -206,7 +206,7 @@ df_ood_id = pd.concat([df_ood, df_id])
 
 # %%
 ood_boxplot(
-    df_ood_id, save_as=f"{path_fig}/entropy_boxplot_ood.pdf", ylim=[0, 5]
+    df_ood_id, save_as=f"{path_fig}/entropy_boxplot_ood.pdf", ylim=[-0.5, 5.5]
 )
 
 # %%
