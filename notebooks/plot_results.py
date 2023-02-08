@@ -197,7 +197,7 @@ ood_cdfplot(
 # ### OOD units
 
 # %%
-ood_units = ["D2U11", "D3U10", "D3U11", "D3U13", "D4U07"]
+ood_units = ["D2U11", "D3U11", "D3U12"]  # , "D4U09"]
 df_ood = df.query(f"unit.isin({ood_units})").assign(ood_id="OOD")
 df_id = df.query(
     f"~unit.str.startswith('D4') and ~unit.isin({ood_units})"
