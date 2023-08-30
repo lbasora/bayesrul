@@ -119,7 +119,6 @@ class Metrics:
             .reset_index()
             .sort_values("relative_time")
         )[["relative_time", "method", "model", "unit", "errs", "stds"]]
-        # if ewm_span is not None:
 
     def by_rlt_unit_method_rul(
         self, rlt_round: Optional[int] = 2, ewm_span: Optional[int] = 3
@@ -146,6 +145,9 @@ class Metrics:
                 "preds_minus",
             ]
         ]
+
+    def nasa_score(self) -> pd.DataFrame:
+        pass
 
     def by_rlt_unit_method_eps_al(
         self, rlt_round: Optional[int] = 2, ewm_span: Optional[int] = 5
@@ -185,13 +187,25 @@ def compute_metrics(df: pd.DataFrame) -> Dict[str, float]:
     metrics["rmse"] = torch.sqrt(((y_true - y_pred) ** 2).mean()).cpu().item()
     metrics["sharp"] = sharpness(std).cpu().item()
     metrics["rmsce"] = rms_calibration_error(y_pred, std, y_true).cpu().item()
+    metrics["ece"] = (
+        mean_absolute_calibration_error(y_pred, std, y_true).cpu().item()
+    )
     metrics["nll"] = (
         gaussian_nll_loss(y_pred, y_true, torch.square(std)).cpu().item()
     )
     metrics["entropy"] = lambda x: torch.distributions.normal.Normal(
         torch.tensor(x.labels.values), torch.tensor(x.stds.values)
     ).entropy()
+    metrics["nasa_score"] = nasa_score(y_true, y_pred).mean().cpu().item()
     return metrics
+
+
+def nasa_score(y_true, y_pred):
+    d = y_pred - y_true
+    # if d <= 0:
+    #     return torch.exp(d / 13) - 1
+    # return torch.exp(d / 10) - 1
+    return torch.where(d > 0, torch.exp(d / 10) - 1, torch.exp(d / 13) - 1)
 
 
 def sharpness(sigma_hat: torch.Tensor) -> Tensor:
@@ -259,6 +273,29 @@ def rms_calibration_error(
     rmsce = torch.sqrt(torch.mean(squared_diff_props))
 
     return rmsce
+
+
+def mean_absolute_calibration_error(
+    y_pred: Tensor,
+    y_std: Tensor,
+    y_true: Tensor,
+    num_bins: int = 100,
+    prop_type: str = "interval",
+) -> float:
+    """Mean absolute calibration error; identical to ECE."""
+    assert_same_shapes(y_pred, y_std, y_true)
+    assert y_std.min() >= 0, "Not all values are positive"
+    assert prop_type in ["interval", "quantile"]
+
+    # Get lists of expected and observed proportions for a range of quantiles
+    exp_props, obs_props = get_proportion_lists(
+        y_pred, y_std, y_true, num_bins, prop_type
+    )
+
+    abs_diff_proportions = torch.abs(exp_props - obs_props)
+    mace = torch.mean(abs_diff_proportions)
+
+    return mace
 
 
 def miscalibration_area(

@@ -38,8 +38,8 @@ def plot_metrics(
         y="value",
         hue="variable",
         data=df.reset_index()
-        .assign(rmsce=lambda x: x.rmsce * 50)
-        .melt(id_vars=x, value_vars=["rmse", "nll", "rmsce", "sharp"]),
+        .assign(ece=lambda x: x.ece * 50)
+        .melt(id_vars=x, value_vars=["rmse", "nll", "ece", "sharp"]),
         kind="bar",
         aspect=aspect,
     )
@@ -51,7 +51,7 @@ def plot_metrics(
         leg = g._legend
         leg.set_bbox_to_anchor(anchor)
         leg.set_title("")
-        new_labels = ["RMSE", "NLL", "RMSCE*50", "Sharp"]
+        new_labels = ["RMSE", "NLL", "ECE*50", "Sharp"]
         for t, l in zip(leg.texts, new_labels):
             t.set_text(l)
     else:
@@ -66,7 +66,9 @@ def plot_fc_method_metrics(
     df: pd.DataFrame,
     methods: List[str],
     save_as: Optional[str] = None,
-    xticklabel_size: int = 15,
+    xticklabel_size: int = 30,
+    metric_label_size: int = 30,
+    legend_label_size: int = 30,
     bbox: Tuple[float, float] = (0.45, 1.04),
 ):
     g = sns.catplot(
@@ -75,13 +77,13 @@ def plot_fc_method_metrics(
         data=(
             df.melt(
                 id_vars=["method", "fc"],
-                value_vars=["nll", "rmse", "rmsce", "sharp"],
+                value_vars=["nll", "rmse", "ece", "sharp"],
             ).assign(
                 variable=lambda x: x.variable.map(
                     {
                         "nll": "NLL",
                         "rmse": "RMSE",
-                        "rmsce": "RMSCE",
+                        "ece": "ECE",
                         "sharp": "SHARP",
                     }
                 )
@@ -94,10 +96,14 @@ def plot_fc_method_metrics(
         kind="bar",
         sharey=False,
         aspect=1.5,
-    ).set_titles(col_template="{col_name}", row_template="{row_name}", size=18)
+    ).set_titles(
+        col_template="{col_name}",
+        row_template="{row_name}",
+        size=metric_label_size,
+    )
     g.set(xlabel=None)
     g.set_xticklabels(size=xticklabel_size)
-    g.set(xticklabels=[1, 2, 3], yticklabels=[])
+    g.set(xticklabels=["FC1", "FC2", "FC3"], yticklabels=[])
     g.set(ylabel=None)
     sns.move_legend(
         g,
@@ -107,7 +113,7 @@ def plot_fc_method_metrics(
     )
     leg = g._legend
     leg.set_title("")
-    plt.setp(leg.get_texts(), fontsize="18")
+    plt.setp(leg.get_texts(), fontsize=legend_label_size)
     g.tight_layout()
     if save_as is not None:
         g.savefig(save_as)
@@ -119,7 +125,7 @@ def plot_unit_method_metrics(
 ) -> sns.FacetGrid:
     df = df.melt(
         id_vars=["method", "unit", "engine_id"],
-        value_vars=["nll", "rmse", "rmsce", "sharp"],
+        value_vars=["nll", "rmse", "ece", "sharp"],
     ).assign(
         theta=lambda x: x.engine_id * 2 * np.pi / len(df.unit.unique()),
         variable=lambda x: x.variable.apply(str.upper),
@@ -322,13 +328,13 @@ def plot_rlt_metrics(
         data=(
             df.melt(
                 id_vars=["method", "relative_time"],
-                value_vars=["nll", "rmse", "rmsce", "sharp"],
+                value_vars=["nll", "rmse", "ece", "sharp"],
             ).assign(
                 variable=lambda x: x.variable.map(
                     {
                         "nll": "NLL",
                         "rmse": "RMSE",
-                        "rmsce": "RMSCE",
+                        "ece": "ECE",
                         "sharp": "SHARP",
                     }
                 )

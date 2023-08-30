@@ -34,28 +34,29 @@ def main(cfg: DictConfig) -> None:
     metrics_dict = dict()
     # metrics_dict["dataset"] = metrics.by_dataset()
     if cfg.subset == "test":
-        # metrics_dict["method"] = metrics.by_method()
-        # metrics_dict["method_agg"] = metrics.by_method(agg=True)
-        # metrics_dict["dataset_agg"] = metrics.by_dataset(agg=True)
-        # metrics_dict["unit"] = metrics.by_unit()
-        # metrics_dict["unit_agg"] = metrics.by_unit(agg=True)
-        # metrics_dict["unit_method"] = metrics.by_unit_method()
-        # metrics_dict["fc"] = metrics.by_fc()
-        # metrics_dict["fc_agg"] = metrics.by_fc(agg=True)
-        # metrics_dict["fc_method"] = metrics.by_fc_method()
+        metrics_dict["method"] = metrics.by_method()
+        metrics_dict["method_agg"] = metrics.by_method(agg=True)
+        metrics_dict["dataset_agg"] = metrics.by_dataset(agg=True)
+        metrics_dict["unit"] = metrics.by_unit()
+        metrics_dict["unit_agg"] = metrics.by_unit(agg=True)
+        metrics_dict["unit_method"] = metrics.by_unit_method()
+        metrics_dict["fc"] = metrics.by_fc()
+        metrics_dict["fc_agg"] = metrics.by_fc(agg=True)
+        metrics_dict["fc_method"] = metrics.by_fc_method()
         # metrics_dict["calibration"] = metrics.calibration()
         # metrics_dict["calibration_fc1"] = metrics.calibration(fc=1)
         # metrics_dict["calibration_fc2"] = metrics.calibration(fc=2)
         # metrics_dict["calibration_fc3"] = metrics.calibration(fc=3)
         # metrics_dict["acc_vs_conf"] = metrics.acc_vs_conf()
-        metrics_dict["rlt_method"] = metrics.by_rlt_method()
-        metrics_dict[
-            "rlt_unit_method_std_err"
-        ] = metrics.by_rlt_unit_method_std_err()
-        metrics_dict["rlt_unit_method_rul"] = metrics.by_rlt_unit_method_rul()
-        metrics_dict[
-            "rlt_unit_method_eps_al"
-        ] = metrics.by_rlt_unit_method_eps_al()
+        # metrics_dict["rlt_method"] = metrics.by_rlt_method()
+        # metrics_dict[
+        #     "rlt_unit_method_std_err"
+        # ] = metrics.by_rlt_unit_method_std_err()
+        # metrics_dict["rlt_unit_method_rul"] = metrics.by_rlt_unit_method_rul()
+        # metrics_dict[
+        #     "rlt_unit_method_eps_al"
+        # ] = metrics.by_rlt_unit_method_eps_al()
+
     path = f"{cfg.metrics_dir}/csv"
     Path(path).mkdir(exist_ok=True, parents=True)
     for key, value in metrics_dict.items():

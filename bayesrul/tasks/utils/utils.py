@@ -8,7 +8,7 @@ import hydra
 import optuna
 from omegaconf import DictConfig
 from pytorch_lightning import Callback
-from pytorch_lightning.loggers import LightningLoggerBase
+from pytorch_lightning.loggers.logger import Logger
 from pytorch_lightning.utilities import rank_zero_only
 
 from . import pylogger, rich_utils
@@ -30,7 +30,6 @@ def task_wrapper(task_func: Callable) -> Callable:
     """
 
     def wrap(cfg: DictConfig, trial: Optional[optuna.trial.Trial]):
-
         # apply extra utilities
         extras(cfg)
 
@@ -43,7 +42,9 @@ def task_wrapper(task_func: Callable) -> Callable:
             raise ex
         finally:
             path = Path(cfg.paths.output_dir, "exec_time.log")
-            content = f"'{cfg.task_name}' execution time: {time.time() - start_time} (s)"
+            content = (
+                f"'{cfg.task_name}' execution time: {time.time() - start_time} (s)"
+            )
             save_file(
                 path, content
             )  # save task execution time (even if exception occurs)
@@ -82,9 +83,7 @@ def extras(cfg: DictConfig) -> None:
 
     # pretty print config tree using Rich library
     if cfg.extras.get("print_config"):
-        log.info(
-            "Printing config tree with Rich! <cfg.extras.print_config=True>"
-        )
+        log.info("Printing config tree with Rich! <cfg.extras.print_config=True>")
         rich_utils.print_config_tree(cfg, resolve=True, save_to_file=True)
 
 
@@ -96,12 +95,14 @@ def save_file(path: str, content: str) -> None:
 
 
 def instantiate_callbacks(
-    cfg: DictConfig, trial: Optional[optuna.trial.Trial] = None
+    cfg: DictConfig,
+    trial: Optional[optuna.trial.Trial] = None,
+    key: Optional[str] = "callbacks",
 ) -> List[Callback]:
     """Instantiates callbacks from config."""
     callbacks: List[Callback] = []
 
-    callbacks_cfg = cfg.get("callbacks")
+    callbacks_cfg = cfg.get(key)
 
     if not callbacks_cfg:
         log.warning("Callbacks config is empty.")
@@ -125,9 +126,9 @@ def instantiate_callbacks(
     return callbacks
 
 
-def instantiate_loggers(logger_cfg: DictConfig) -> List[LightningLoggerBase]:
+def instantiate_loggers(logger_cfg: DictConfig) -> List[Logger]:
     """Instantiates loggers from config."""
-    logger: List[LightningLoggerBase] = []
+    logger: List[Logger] = []
 
     if not logger_cfg:
         log.warning("Logger config is empty.")
