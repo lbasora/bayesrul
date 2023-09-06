@@ -111,7 +111,7 @@ plot_unit_method_metrics(
     pd.read_csv(f"{cfg.metrics_dir}/csv/unit_method.csv"),
     cfg.methods,
     xticklabel_size=13,
-    metric_label_size=18,
+    metric_label_size=20,
     legend_label_size=18,
     save_as=f"{path_fig}/unit_method_metrics.pdf",
 )

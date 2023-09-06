@@ -144,31 +144,48 @@ def plot_unit_method_metrics(
         ]
     )
     df = df.sort_values(["variable", "method"]).reset_index(drop=True)
+    metrics = ["RMSE", "NLL", "ECE", "SHARP"]
     g = sns.FacetGrid(
         data=df,
         col="variable",
-        col_order=["RMSE", "NLL", "ECE", "SHARP"],
+        col_order=metrics,
         col_wrap=2,
         hue="method",
         hue_order=methods,
         subplot_kws=dict(projection="polar"),
-        # aspect=1.3,
-        height=5,
+        # aspect=2,
+        height=6,
         sharex=False,
         sharey=False,
         despine=False,
     )
-    with warnings.catch_warnings():
-        warnings.simplefilter(action="ignore", category=FutureWarning)
-        g.map(sns.lineplot, "theta", "value", lw=3, ci=95)
-    angles = df.theta.unique() * 180 / np.pi
+    g.map(sns.lineplot, "theta", "value", lw=3, errorbar=None)
     units = df.unit.unique()
     units = np.concatenate((units, [units[0]]))
-    for i, ax in enumerate(g.axes.flat):
-        ax.set_thetagrids(angles, units)
-    g.set_titles(col_template="{col_name}", size=metric_label_size)
+    ticks = df.theta.unique()
+    for ax, metric in zip(g.axes.flat, metrics):
+        ax.xaxis.set_tick_params(pad=15)
+        ax.set_xticks(ticks)
+        ax.set_xticklabels(units, fontsize=xticklabel_size)
+        angles = np.linspace(0, 2 * np.pi, len(ax.get_xticklabels()))
+        angles[np.cos(angles) < 0] = angles[np.cos(angles) < 0] + np.pi
+        angles = np.rad2deg(angles)
+        for label, angle in zip(ax.get_xticklabels(), angles):
+            x, y = label.get_position()
+            lab = ax.text(
+                x,
+                y,
+                label.get_text(),
+                transform=label.get_transform(),
+                ha=label.get_ha(),
+                va=label.get_va(),
+            )
+            lab.set_rotation(angle)
+        ax.set_xticklabels([])
+        ax.set_title(metric, pad=60, fontdict={"fontsize": metric_label_size})
+
+    plt.subplots_adjust(top=0.9)
     g.set(xlabel=None)
-    g.set_xticklabels(size=xticklabel_size)
     g.set(yticklabels=[])
     g.set(ylabel=None)
     g.add_legend()
