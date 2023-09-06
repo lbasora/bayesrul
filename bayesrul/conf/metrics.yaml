@@ -13,7 +13,7 @@ preds_dir: ${paths.results_dir}/${dataset}/predictions/${subset}
 cache_dir: ${paths.results_dir}/${dataset}/cache/${subset}
 metrics_dir: ${paths.results_dir}/${dataset}/metrics/${subset}
 methods: ["DE", "MCD", "HNN", "RAD", "LRT", "FO"]
-metrics: ["mae", "rmse", "nll", "ece", "sharp"] #["mae", "rmse", "nll", "rmsce", "ece", "sharp", "nasa_score"]
+metrics: ["mae", "rmse", "nll", "ece", "sharp", "s"]
 top: 5 # top N models only per method
 deepens: # deep ensemble
   {

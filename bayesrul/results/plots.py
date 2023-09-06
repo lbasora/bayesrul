@@ -121,7 +121,12 @@ def plot_fc_method_metrics(
 
 
 def plot_unit_method_metrics(
-    df: pd.DataFrame, methods: List[str], xticklabel_size=13, save_as=None
+    df: pd.DataFrame,
+    methods: List[str],
+    xticklabel_size: int = 30,
+    metric_label_size: int = 30,
+    legend_label_size: int = 30,
+    save_as=None,
 ) -> sns.FacetGrid:
     df = df.melt(
         id_vars=["method", "unit", "engine_id"],
@@ -142,11 +147,12 @@ def plot_unit_method_metrics(
     g = sns.FacetGrid(
         data=df,
         col="variable",
+        col_order=["RMSE", "NLL", "ECE", "SHARP"],
         col_wrap=2,
         hue="method",
         hue_order=methods,
         subplot_kws=dict(projection="polar"),
-        # aspect=2,
+        # aspect=1.3,
         height=5,
         sharex=False,
         sharey=False,
@@ -160,7 +166,7 @@ def plot_unit_method_metrics(
     units = np.concatenate((units, [units[0]]))
     for i, ax in enumerate(g.axes.flat):
         ax.set_thetagrids(angles, units)
-    g.set_titles(col_template="{col_name}", size=18)
+    g.set_titles(col_template="{col_name}", size=metric_label_size)
     g.set(xlabel=None)
     g.set_xticklabels(size=xticklabel_size)
     g.set(yticklabels=[])
@@ -174,7 +180,7 @@ def plot_unit_method_metrics(
     )
     leg = g._legend
     leg.set_title("")
-    plt.setp(leg.get_texts(), fontsize="18")
+    plt.setp(leg.get_texts(), fontsize=legend_label_size)
     g.tight_layout()
     if save_as is not None:
         g.savefig(save_as)
@@ -320,7 +326,12 @@ def ood_cdfplot(
 
 
 def plot_rlt_metrics(
-    df: pd.DataFrame, methods: List[str], save_as: Optional[str] = None
+    df: pd.DataFrame,
+    methods: List[str],
+    save_as: Optional[str] = None,
+    xticklabel_size: int = 13,
+    metric_label_size: int = 18,
+    legend_label_size: int = 18,
 ) -> sns.catplot:
     g = sns.catplot(
         x="relative_time",
@@ -349,10 +360,11 @@ def plot_rlt_metrics(
         aspect=2,
         height=3,
     )
-    g.set_titles(col_template="{col_name}", size=18)
+    g.set_titles(col_template="{col_name}", size=metric_label_size)
     g.set(xlabel="Relative Lifetime")
     g.set(yticklabels=[])
     g.set(ylabel=None)
+    g.set_xticklabels(size=xticklabel_size)
     sns.move_legend(
         g,
         "upper center",
@@ -361,7 +373,7 @@ def plot_rlt_metrics(
     )
     leg = g._legend
     leg.set_title("")
-    plt.setp(leg.get_texts(), fontsize="18")
+    plt.setp(leg.get_texts(), fontsize=legend_label_size)
     g.tight_layout()
     if save_as is not None:
         g.savefig(save_as)

@@ -146,8 +146,10 @@ class Metrics:
             ]
         ]
 
-    def nasa_score(self) -> pd.DataFrame:
-        pass
+    def nasa_score(self, agg: bool = False) -> pd.DataFrame:
+        return self.by_method(
+            agg
+        )  # pd.concat(list(self.by_method(agg)))  # , self.by_dataset(agg)
 
     def by_rlt_unit_method_eps_al(
         self, rlt_round: Optional[int] = 2, ewm_span: Optional[int] = 5
@@ -196,16 +198,13 @@ def compute_metrics(df: pd.DataFrame) -> Dict[str, float]:
     metrics["entropy"] = lambda x: torch.distributions.normal.Normal(
         torch.tensor(x.labels.values), torch.tensor(x.stds.values)
     ).entropy()
-    metrics["nasa_score"] = nasa_score(y_true, y_pred).mean().cpu().item()
+    metrics["s"] = nasa_score(y_true, y_pred).mean().cpu().item()
     return metrics
 
 
 def nasa_score(y_true, y_pred):
     d = y_pred - y_true
-    # if d <= 0:
-    #     return torch.exp(d / 13) - 1
-    # return torch.exp(d / 10) - 1
-    return torch.where(d > 0, torch.exp(d / 10) - 1, torch.exp(d / 13) - 1)
+    return torch.where(d > 0, torch.exp(d / 10) - 1, torch.exp(-d / 13) - 1)
 
 
 def sharpness(sigma_hat: torch.Tensor) -> Tensor:
