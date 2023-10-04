@@ -49,9 +49,9 @@ def main(cfg: DictConfig) -> None:
         # metrics_dict["calibration_fc3"] = metrics.calibration(fc=3)
         # metrics_dict["acc_vs_conf"] = metrics.acc_vs_conf()
         # metrics_dict["rlt_method"] = metrics.by_rlt_method()
-        # metrics_dict[
-        #     "rlt_unit_method_std_err"
-        # ] = metrics.by_rlt_unit_method_std_err()
+        metrics_dict[
+            "rlt_unit_method_std_err"
+        ] = metrics.by_rlt_unit_method_std_err()
         # metrics_dict["rlt_unit_method_rul"] = metrics.by_rlt_unit_method_rul()
         # metrics_dict[
         #     "rlt_unit_method_eps_al"
@@ -60,7 +60,7 @@ def main(cfg: DictConfig) -> None:
     path = f"{cfg.metrics_dir}/csv"
     Path(path).mkdir(exist_ok=True, parents=True)
     for key, value in metrics_dict.items():
-        value.to_csv(f"{path}/{key}.csv")
+        value.to_csv(f"{path}/{key}.csv", index=False)
 
 
 if __name__ == "__main__":

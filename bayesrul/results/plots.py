@@ -123,9 +123,9 @@ def plot_fc_method_metrics(
 def plot_unit_method_metrics(
     df: pd.DataFrame,
     methods: List[str],
-    xticklabel_size: int = 30,
-    metric_label_size: int = 30,
-    legend_label_size: int = 30,
+    xticklabel_size: int = 13,
+    metric_label_size: int = 20,
+    legend_label_size: int = 18,
     save_as=None,
 ) -> sns.FacetGrid:
     df = df.melt(
@@ -249,7 +249,7 @@ def plot_calibration(
             **{"GT": "0"},
         },
         lw=3,
-        ci=None,
+        # ci=None,
     )
     g.set(
         xlabel="Expected Confidence Level", ylabel="Predicted Confidence Level"
@@ -417,12 +417,25 @@ def paired_column_facets(
 def plot_rlt_unit_method_std_err(
     df: pd.DataFrame,
     methods: List[str],
+    units: List[str],
+    grey_units: List[str],
     save_as: Optional[str] = None,
-    hue_order=None,
+    xticklabel_size: int = 18,
+    method_label_size: int = 30,
+    legend_label_size: int = 25,
 ) -> sns.FacetGrid:
+    hue_order = (
+        df.query("unit in @units")
+        .groupby("unit")
+        .mean(numeric_only=True)
+        .sort_values("stds", ascending=False)
+        .reset_index()
+        .unit.unique()
+        .tolist()
+    )
     g = (
         paired_column_facets(
-            df.query(f"method in {methods}"),
+            df.query("unit in @units").query(f"method in {methods}"),
             y_vars=["stds", "errs"],
             other_vars={"x": "relative_time", "col": "method", "hue": "unit"},
             col_order=methods,
@@ -430,10 +443,14 @@ def plot_rlt_unit_method_std_err(
             sizes=(5, 10),
             markers=True,
         )
-        .set_titles(row_template="", col_template="{col_name}", size=30)
+        .set_titles(
+            row_template="",
+            col_template="{col_name}",
+            size=method_label_size,
+        )
         .set(xlim=(0.0, 1.0))
     )
-    for (row_name, _), ax in g.axes_dict.items():
+    for (row_name, col_name), ax in g.axes_dict.items():
         ax.set_ylabel(
             "Uncertainty RUL [cycles]"
             if row_name == "stds"
@@ -441,12 +458,32 @@ def plot_rlt_unit_method_std_err(
             fontsize=25,
         )
         ax.set_xlabel("Relative Lifetime", fontsize=25)
+        ax.xaxis.set_tick_params(labelsize=xticklabel_size)
+        ax.yaxis.set_tick_params(labelsize=xticklabel_size)
+        data = (
+            df.query("unit in @grey_units and method==@col_name")
+            .groupby(["method", "unit", "relative_time"])
+            .mean(numeric_only=True)
+            .reset_index()[["relative_time", "unit", "errs", "stds"]]
+        )
+        sns.lineplot(
+            data=data,
+            x="relative_time",
+            y=row_name,
+            units="unit",
+            estimator=None,
+            color=".7",
+            linewidth=1,
+            legend=None,
+            errorbar=None,
+            ax=ax,
+        )
     sns.move_legend(
         g, "upper center", bbox_to_anchor=(0.45, 1.08), ncol=11, handlelength=6
     )
     leg = g._legend
     leg.set_title("")
-    plt.setp(leg.get_texts(), fontsize=25)
+    plt.setp(leg.get_texts(), fontsize=legend_label_size)
     g.tight_layout()
     if save_as is not None:
         g.savefig(save_as)
@@ -458,6 +495,9 @@ def plot_rlt_unit_method_rul(
     methods: List[str],
     units: List[str],
     save_as: Optional[str] = None,
+    xticklabel_size: int = 18,
+    method_label_size: int = 20,
+    legend_label_size: int = 18,
 ) -> sns.FacetGrid:
     g = sns.FacetGrid(
         df.query(f"method in {methods} and unit in {units}"),
@@ -491,8 +531,17 @@ def plot_rlt_unit_method_rul(
             alpha=0.2,
             label="95\% CI",
         )
-    g.set_titles(row_template="{row_name}", col_template="{col_name}", size=18)
-    g.set_axis_labels("Relative Lifetime [-]", "RUL [cycles]")
+    g.set_titles(
+        row_template="{row_name}",
+        col_template="{col_name}",
+        size=method_label_size,
+    )
+    for ax in g.axes.flat:
+        ax.xaxis.set_tick_params(labelsize=xticklabel_size)
+        ax.yaxis.set_tick_params(labelsize=xticklabel_size)
+    g.set_axis_labels(
+        "Relative Lifetime [-]", "RUL [cycles]", size=xticklabel_size
+    )
     g.set(ylim=(0, 90))
     g.add_legend()
     sns.move_legend(
@@ -501,7 +550,7 @@ def plot_rlt_unit_method_rul(
         bbox_to_anchor=(0.45, 1.05),
         ncol=3,
     )
-    plt.setp(g._legend.get_texts(), fontsize="15")
+    plt.setp(g._legend.get_texts(), fontsize=legend_label_size)
     g.tight_layout()
     if save_as is not None:
         g.savefig(save_as)
@@ -513,6 +562,9 @@ def plot_eps_al_uncertainty(
     methods: List[str],
     units: List[str],
     save_as: Optional[str] = None,
+    xticklabel_size: int = 18,
+    method_label_size: int = 20,
+    legend_label_size: int = 18,
 ) -> sns.relplot:
     g = (
         sns.relplot(
@@ -534,14 +586,20 @@ def plot_eps_al_uncertainty(
             facet_kws=dict(sharey="row", margin_titles=True),
             linewidth=3,
         )
-        .set_axis_labels("Relative Lifetime [-]", "RUL [cycles]")
+        .set_axis_labels(
+            "Relative Lifetime [-]", "RUL [cycles]", size=xticklabel_size
+        )
         .set_titles(
-            row_template="{row_name}", col_template="{col_name}", size=18
+            row_template="{row_name}",
+            col_template="{col_name}",
+            size=method_label_size,
         )
     )
     for (row_name, _), ax in g.axes_dict.items():
-        ax.set_ylabel("Uncertainty RUL (Std) [cycles]")
-        ax.set_xlabel("Relative Lifetime")
+        ax.set_ylabel("Std [cycles]")
+        ax.set_xlabel("Relative Lifetime [-]")
+        ax.xaxis.set_tick_params(labelsize=xticklabel_size)
+        ax.yaxis.set_tick_params(labelsize=xticklabel_size)
     sns.move_legend(
         g,
         "upper center",
@@ -551,13 +609,13 @@ def plot_eps_al_uncertainty(
     leg = g._legend
     leg.set_title("")
     new_labels = [
-        "Total uncertainty (std)",
-        "Epistemic uncertainty (std)",
-        "Aleatoric uncertainty (std)",
+        "Total (std)",
+        "Epistemic (std)",
+        "Aleatoric (std)",
     ]
     for t, l in zip(leg.texts, new_labels):
         t.set_text(l)
-    plt.setp(leg.get_texts(), fontsize="18")
+    plt.setp(leg.get_texts(), fontsize=legend_label_size)
     g.tight_layout()
     g.savefig(save_as)
     return g

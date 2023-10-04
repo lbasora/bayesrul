@@ -168,6 +168,7 @@ plot_calibration(
     cfg.methods,
     f"{path_fig}/calibration_fc1.pdf",
 )
+
 # %%
 plot_calibration(
     pd.read_csv(f"{cfg.metrics_dir}/csv/calibration_fc3.csv"),
@@ -252,36 +253,50 @@ plot_rlt_metrics(
     save_as=f"{path_fig}/rlt_metrics.pdf",
 )
 
+
 # %%
 df_rlt = pd.read_csv(f"{cfg.metrics_dir}/csv/rlt_unit_method_std_err.csv")
+units = (
+    df_rlt.groupby("unit")
+    .mean(numeric_only=True)
+    .sort_values("stds", ascending=False)
+    .reset_index()
+    .unit.unique()
+    .tolist()
+)
+grey_units = units[5:-5]
+units = units[:5] + units[-5:]
 plot_rlt_unit_method_std_err(
     df_rlt,
-    cfg.methods,
+    ["LRT", "FO", "RAD", "MCD", "DE", "HNN"],
     save_as=f"{path_fig}/unit_method_std_err.pdf",
-    hue_order=(
-        df_rlt.groupby("unit")
-        .mean(numeric_only=True)
-        .sort_values("stds", ascending=False)
-        .reset_index()
-        .unit.unique()
-        .tolist()
-    ),
+    units=units,
+    grey_units=grey_units,
+    xticklabel_size=20,
+    method_label_size=30,
+    legend_label_size=30,
 )
 
 # %%
 plot_rlt_unit_method_rul(
     pd.read_csv(f"{cfg.metrics_dir}/csv/rlt_unit_method_rul.csv"),
     methods=["LRT", "FO", "RAD", "MCD", "DE", "HNN"],
-    units=["D4U07", "D5U08"],
+    units=["D4U08", "D5U08"],
     save_as=f"{path_fig}/rul.pdf",
+    xticklabel_size=18,
+    method_label_size=20,
+    legend_label_size=18,
 )
 
 # %%
 plot_eps_al_uncertainty(
     pd.read_csv(f"{cfg.metrics_dir}/csv/rlt_unit_method_eps_al.csv"),
     methods=["LRT", "FO", "RAD", "MCD"],
-    units=["D4U07", "D5U08"],
+    units=["D4U08", "D5U08"],
     save_as=f"{path_fig}/eps_al_uq.pdf",
+    xticklabel_size=20,
+    method_label_size=20,
+    legend_label_size=20,
 )
 
 # %%
