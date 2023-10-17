@@ -155,6 +155,17 @@ plot_metrics(
 # %% [markdown]
 # ## Calibration
 # %%
+# To generate tikz plot illustrating over/under confidence
+cfg = compose(config_name="metrics", overrides=["subset=test"])
+df = pd.read_csv(f"{cfg.metrics_dir}/csv/calibration.csv")
+uc = df.query("model =='MCD_000'")[["exp_c", "obs_c"]]
+oc = df.query("model == 'FO_000'")[["exp_c", "obs_c"]]
+for cal, df in zip(["uc", "oc"], [uc, oc]):
+    df.rename(columns={"exp_c": "x", "obs_c": "y"}).to_csv(
+        f"{cal}_cal.csv", sep=" ", index=False, header=False
+    )
+
+# %%
 cfg = compose(config_name="metrics", overrides=["subset=test"])
 plot_calibration(
     pd.read_csv(f"{cfg.metrics_dir}/csv/calibration.csv"),
